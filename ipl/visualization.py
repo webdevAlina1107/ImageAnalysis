@@ -79,5 +79,6 @@ def visualize_clouds_impact(date_stamps: List[datetime],
                          y_label='Count of images')
     dates_formatter = mdates.DateFormatter('%d/%m/%Y')
     dates_locator = mdates.MonthLocator()
-    axes.xaxis
+    axes.xaxis.set_major_locator(dates_locator)
+    axes.xaxis.set_major_formatter(dates_formatter)
     figure.autofmt_xdate()
