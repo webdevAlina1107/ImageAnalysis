@@ -8,11 +8,13 @@ IMAGE_DATA_TYPE = np.uint8
 SPECIAL_VALUE: IMAGE_DATA_TYPE = IMAGE_DATA_TYPE(255)
 
 
-def fill_cloud_bits_with_nan(array: np.ndarray) -> np.ndarray:
+def fill_cloud_bits_with_value(array: np.ndarray,
+                               clouds_special_value: IMAGE_DATA_TYPE = SPECIAL_VALUE
+                               ) -> np.ndarray:
     non_clouds_range = (1, 253)
     masked_array = np.ma.masked_outside(array, *non_clouds_range)
     # Not np.nan because it's only for arrays with float data type only
-    return masked_array.filled(SPECIAL_VALUE)
+    return masked_array.filled(clouds_special_value)
 
 
 def read_image_bitmap(image_file_path: Path,
@@ -29,6 +31,7 @@ def construct_values_occurrences_map(array: np.ndarray):
 
 def calculate_clouds_percentile(array: np.ndarray,
                                 clouds_special_value: IMAGE_DATA_TYPE = SPECIAL_VALUE):
+    """Note that this function should be only used after processing with fill_cloud_bits_with_value"""
     return np.count_nonzero(array == clouds_special_value) / array.size
 
 
