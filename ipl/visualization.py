@@ -14,7 +14,7 @@ def _construct_bar(ax,
                    bar_width: float = 0.9,
                    should_label_bars: bool = True,
                    **kwargs):
-    if not x_values:
+    if x_values is None:
         x_values = range(len(y_values))
 
     rectangles = ax.bar(x_values,
@@ -57,9 +57,20 @@ def _label_hist_rectangles(rectangles,
                       va='bottom')
 
 
+def _determine_date_locator(dates_range: Sequence[datetime]):
+    min_date, max_date = min(dates_range), max(dates_range)
+    diff = max_date - min_date
+    print(diff)
+    if diff.days < 31:
+        return dates.DayLocator()
+    if diff.days < 365:
+        return dates.MonthLocator()
+    return dates.YearLocator()
+
+
 def visualize_values_frequencies(unique_values_occurrences: Dict[IMAGE_DATA_TYPE, int],
                                  **kwargs):
-    figure, axes = plot.subplot(1, 1, 1)
+    figure, axes = plot.subplots()
     occurrences = np.fromiter(unique_values_occurrences.values(), dtype=IMAGE_DATA_TYPE)
     _setup_axes_for_hist(axes,
                          title='Frequencies histogram',
@@ -78,28 +89,34 @@ def visualize_clouds_impact(date_stamps: Sequence[datetime],
                             fully_clouded_counts: Sequence[int]):
     """Accepts date stamps array with cloud statistics for each date
     and plots bars histogram with this data"""
-    figure, axes = plot.subplot(1, 1, 2)
+    figure, axes = plot.subplots()
     _setup_axes_for_hist(axes,
                          title='Clouded images statistics',
                          x_label='Time stamps',
                          y_label='Count of images')
     dates_formatter = dates.DateFormatter('%d/%m/%Y')
-    dates_locator = dates.MonthLocator()
+    dates_locator = _determine_date_locator(date_stamps)
     axes.xaxis.set_major_locator(dates_locator)
     axes.xaxis.set_major_formatter(dates_formatter)
 
-    colors = ['r', 'g', 'b']
+    colors = ['mediumslateblue',
+              'plum',
+              'thistle']
     bars_height = [non_clouded_counts, partially_clouded_counts, fully_clouded_counts]
+    date_stamps = dates.date2num(date_stamps)
+    bar_width = 0.2
 
-    def create_bar(y_axis, color):
+    def create_bar(y_axis, color, n=0):
         return _construct_bar(axes,
                               y_values=y_axis,
-                              x_values=date_stamps,
-                              bar_width=0.3,
+                              x_values=date_stamps + bar_width * n - bar_width,
+                              bar_width=bar_width,
                               color=color)
 
-    bars = tuple(create_bar(data, color) for data, color in zip(bars_height, colors))
+    bars = tuple(create_bar(data, color, index) for index, (data, color) in enumerate(zip(bars_height, colors)))
     labels = ['Non clouded', 'Partially clouded', 'Fully clouded']
     axes.legend(bars, labels)
     axes.xaxis_date()
+    axes.autoscale(tight=True)
     figure.autofmt_xdate()
+    plot.show()
