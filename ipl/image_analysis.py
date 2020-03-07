@@ -1,6 +1,7 @@
-import rasterio as rast
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+import rasterio as rast
 import scipy.stats as stats
 
 IMAGE_DATA_TYPE = np.uint8
