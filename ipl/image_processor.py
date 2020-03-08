@@ -1,11 +1,11 @@
-from pathlib import Path
 import argparse
 import datetime
 import os
-from typing import List, Optional
+from pathlib import Path
 from pprint import pformat
+from typing import List, Optional
 
-from ipl._logging import logger, configure_logger
+from ipl._logging import configure_logger, logger
 from ipl.errors import IPLError
 
 

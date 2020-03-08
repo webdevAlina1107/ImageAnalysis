@@ -1,7 +1,8 @@
 """setup.py: setuptools control"""
 
-from setuptools import setup, find_packages
 import os
+
+from setuptools import find_packages, setup
 
 directory_location = os.path.dirname(__file__)
 readme_location = os.path.join(directory_location, 'README.md')

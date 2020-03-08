@@ -5,8 +5,8 @@ import matplotlib.dates as dates
 import matplotlib.pyplot as plot
 import numpy as np
 
-from ipl.image_analysis import IMAGE_DATA_TYPE
 from ipl._logging import logger
+from ipl.image_analysis import IMAGE_DATA_TYPE
 
 
 def _construct_bar(ax,
