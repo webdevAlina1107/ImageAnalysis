@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Sequence
 
 import matplotlib.dates as dates
 import matplotlib.pyplot as plot
+import matplotlib.colors as colors
 import numpy as np
 
 from ipl.image_analysis import IMAGE_DATA_TYPE
@@ -29,10 +30,10 @@ def _construct_bar(ax,
     return rectangles
 
 
-def _setup_axes_for_hist(ax,
-                         title: str,
-                         x_label: str,
-                         y_label: str):
+def _setup_axes(ax,
+                title: str,
+                x_label: str,
+                y_label: str):
     ax.set_title(title)
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -68,34 +69,33 @@ def _determine_date_locator(dates_range: Sequence[datetime]):
     return dates.YearLocator()
 
 
-def visualize_values_frequencies(unique_values_occurrences: Dict[IMAGE_DATA_TYPE, int],
-                                 **kwargs):
-    figure, axes = plot.subplots()
+def plot_values_frequencies(unique_values_occurrences: Dict[IMAGE_DATA_TYPE, int],
+                            **kwargs):
+    axes, figure = plot.gca(), plot.gcf()
     occurrences = np.fromiter(unique_values_occurrences.values(), dtype=IMAGE_DATA_TYPE)
-    _setup_axes_for_hist(axes,
-                         title='Frequencies histogram',
-                         x_label='Values',
-                         y_label='Occurrences')
+    _setup_axes(axes,
+                title='Frequencies histogram',
+                x_label='Values',
+                y_label='Occurrences')
     _construct_bar(axes, occurrences, **kwargs)
     values_ = np.fromiter(unique_values_occurrences.keys(), dtype=IMAGE_DATA_TYPE)
     axes.set_xticks(range(len(values_)))
     axes.set_xticklabels(values_)
-    plot.show()
 
 
-def visualize_clouds_impact(date_stamps: Sequence[datetime],
-                            non_clouded_counts: Sequence[int],
-                            partially_clouded_counts: Sequence[int],
-                            fully_clouded_counts: Sequence[int]):
+def plot_clouds_impact_for_a_period(time_stamps: Sequence[datetime],
+                                    non_clouded_counts: Sequence[int],
+                                    partially_clouded_counts: Sequence[int],
+                                    fully_clouded_counts: Sequence[int]):
     """Accepts date stamps array with cloud statistics for each date
     and plots bars histogram with this data"""
-    figure, axes = plot.subplots()
-    _setup_axes_for_hist(axes,
-                         title='Clouded images statistics',
-                         x_label='Time stamps',
-                         y_label='Count of images')
+    axes, figure = plot.gca(), plot.gcf()
+    _setup_axes(axes,
+                title='Clouded images statistics',
+                x_label='Time stamps',
+                y_label='Count of images')
     dates_formatter = dates.DateFormatter('%d/%m/%Y')
-    dates_locator = _determine_date_locator(date_stamps)
+    dates_locator = _determine_date_locator(time_stamps)
     axes.xaxis.set_major_locator(dates_locator)
     axes.xaxis.set_major_formatter(dates_formatter)
 
@@ -103,13 +103,13 @@ def visualize_clouds_impact(date_stamps: Sequence[datetime],
               'plum',
               'thistle']
     bars_height = [non_clouded_counts, partially_clouded_counts, fully_clouded_counts]
-    date_stamps = dates.date2num(date_stamps)
+    time_stamps = dates.date2num(time_stamps)
     bar_width = 0.2
 
     def create_bar(y_axis, color, n=0):
         return _construct_bar(axes,
                               y_values=y_axis,
-                              x_values=date_stamps + bar_width * n - bar_width,
+                              x_values=time_stamps + bar_width * n - bar_width,
                               bar_width=bar_width,
                               color=color)
 
@@ -119,4 +119,40 @@ def visualize_clouds_impact(date_stamps: Sequence[datetime],
     axes.xaxis_date()
     axes.autoscale(tight=True)
     figure.autofmt_xdate()
+
+
+def plot_statistics_for_a_period(time_stamps: Sequence[datetime],
+                                 mean: Sequence[float],
+                                 lower_ci: Sequence[float],
+                                 upper_ci: Sequence[float],
+                                 legend_name: Optional[str] = None):
+    axes, figure = plot.gca(), plot.gcf()
+    _setup_axes(axes,
+                title='Time period CI statistics',
+                x_label='Time stamps',
+                y_label='Statistical data')
+    dates_formatter = dates.DateFormatter('%d/%m/%Y')
+    dates_locator = _determine_date_locator(time_stamps)
+    axes.xaxis.set_major_locator(dates_locator)
+    axes.xaxis.set_major_formatter(dates_formatter)
+
+    random_line_color = np.random.rand(3)
+    plot.fill_between(time_stamps, lower_ci, upper_ci,
+                      color=random_line_color,
+                      alpha=0.5)
+    if legend_name:
+        plot.plot(time_stamps, mean,
+                  color=random_line_color,
+                  label=legend_name)
+        axes.legend()
+    else:
+        plot.plot(time_stamps, mean,
+                  color=random_line_color)
+
+    axes.xaxis_date()
+    axes.autoscale(tight=True)
+    figure.autofmt_xdate()
+
+
+def show_plots():
     plot.show()
