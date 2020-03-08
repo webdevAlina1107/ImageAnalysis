@@ -1,7 +1,8 @@
 """setup.py: setuptools control"""
 
-from setuptools import setup, find_packages
 import os
+
+from setuptools import find_packages, setup
 
 directory_location = os.path.dirname(__file__)
 readme_location = os.path.join(directory_location, 'README.md')
@@ -19,13 +20,14 @@ setup(
     entry_points={
         "console_scripts": ['ipl = ipl.image_processor:main']
     },
-    version="0.0.1",
+    version="0.0.0",
     license='MIT',
     description="Python command line application which analyses images",
     long_description=long_description,
     author="Fugol Alina, Taran Anatoly",
     author_email="webdevAlina@gmail.com",
-    url="https://github.com/Mtrqq/LPPSolver/blob/master/lpp_solver",
+    url="https://github.com/webdevAlina1107/ImageAnalysis",
+    download_url='https://github.com/webdevAlina1107/ImageAnalysis/archive/0.0.1.tar.gz',
     keywords=['IMAGE PROCESSING', 'CMD', 'UTILITY', 'RASTER'],
     install_requires=requirements,
     classifiers=[
