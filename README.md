@@ -23,7 +23,7 @@ File name pattern := TBD
 
 ## Visualization
 
-* Histogram to visualize cloudness of images on a timeline
+* Histogram to visualize cloudiness of images on a timeline
 * Histogram to visualize image bits occurences of an image
 * Diagram to visualize multiple datasets statistical data
 
