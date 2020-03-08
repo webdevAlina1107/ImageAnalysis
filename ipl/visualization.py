@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional, Sequence
 
 import matplotlib.dates as dates
 import matplotlib.pyplot as plot
-import matplotlib.colors as colors
 import numpy as np
 
 from ipl.image_analysis import IMAGE_DATA_TYPE
