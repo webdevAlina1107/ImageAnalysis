@@ -3,6 +3,9 @@ import argparse
 import datetime
 import os
 from typing import List, Optional
+from pprint import pformat
+
+from ipl._logging import logger, configure_logger
 
 
 def _parse_date(string: str):
@@ -88,7 +91,9 @@ def cmdline_arguments():
     parser = argparse.ArgumentParser(description='Utility to process images')
     parser.add_argument('--debug', action='store_true',
                         help='Toggles debug info printout')
-
+    parser.add_argument('--log_file', dest='log_file', default=None,
+                        type=str, metavar='PATH/TO/LOGS/FILE',
+                        help='Path to file where to store logs')
     subparsers = parser.add_subparsers(dest='command')
     subparsers.required = True
 
@@ -201,10 +206,12 @@ def cmdline_arguments():
     return arguments
 
 
-
 def main():
     arguments = cmdline_arguments()
+    configure_logger(is_debug=arguments.debug,
+                     logs_file=arguments.log_file)
     function = arguments.function
+    logger.debug(f'Starting target function with arguments : \n{pformat(vars(arguments), indent=4)}')
     function(**vars(arguments))
 
 
