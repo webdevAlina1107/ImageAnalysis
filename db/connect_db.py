@@ -3,56 +3,56 @@ import sqlite3
 con = None
 cur = None
 
-
 def sqlite3_connect():
     global con
-
-    con = sqlite3.connect('./image_db.db')
-
-
-def sqlite3_create_tables():
     global cur
-
+    con = sqlite3.connect('.db/datasource/images.db')
     cur = con.cursor()
 
-    cur.execute('Create table IF NOT EXISTS image('
-                'field_id INT PRIMARY KEY,'
-                'image BLOB)')
+# import image values
+def sqlite3_import_images(image_id, field_id, image_data, data):
+    cur.execute(f"IMPORT INTO image VALUES ('{image_id}', '{field_id}', {image_data}', '{data}')")
+    cur.commit()
 
-    cur.execute('Create table IF NOT EXISTS image_data('
-                'data_id DATA PRIMARY KEY,'
-                'field_id INT,'
-                'FOREIGN KEY (field_id) REFERENCES image (field_id))')
+# import field from file to db
+def sqlite3_import_field(field_id)
+    cur.execute(f"IMPORT INTO field VALUES ('{field_id})")
+    cur.commit()
 
-    cur.execute('Create table IF NOT EXISTS statistic_info('
-                'statistic_id INTEGER PRIMARY KEY AUTOINCREMENT,'
-                'field_id INTEGER,'
-                'data_id DATA,'
-                'cloud_rate REAL,'
-                'index_weighted_avg REAL,'
-                'standard_deviation REAL,'
-                'unique_values_enter REAL,'
-                'FOREIGN KEY (field_id) '
-                'REFERENCES image (field_id)'
-                'FOREIGN KEY (data_id)'
-                'REFERENCES image_data (data_id))')
+# get image from db (date to date)
+def sqlite3_export_image(field_id, data_start, data_end):
+    cur.execute(f"SELECT * FROM image, field where image.field_id = field.field_id and field.field_id = '{field_id}'"
+                f"and data between '{data_start}' and '{data_end}'")
+    images = cur.fetchall()
+    return images
+
+# get image all from db
+def sqlite3_export_image_all():
+    cur.execute(f"SELECT * FROM image, field where image.field_id = field.field_id")
+    images = cur.fetchall()
+    return images
+
+# filter by date
+def sqlite3_filter_by_date_image(data_start, data_end):
+    cur.execute(
+        f"Select * from image, field where image.field_id = field.field_id and data between '{data_start}' and '{data_end}'")
+    images = cur.fetchall()
+    return images
+
+# filter by head
+def sqlite3_filter_by_date_head(head_size, data_start, data_end):
+    cur.execute(
+        "Select * from image, field where image.field_id = field.field_id and data between \'"
+        f" '{data_start}'  and '{data_end}' LIMIT {head_size} ")
+    images = cur.fetchmany(head_size)
+    return images
+
+# get statistic info
+def sqlite3_visualize_statistic(id, start, end, max_cloudiness):
+    cur.execute("Select index_weighted_avg, confidence_interval_lower, confidence_interval_upper from statistic_info, image, field"
+                "where statistic_info.image_id = image.image_id and field.field_id = image.field_id"
+                f"and data between '{start}' and '{end} ' and cloud_rate < '{max_cloudiness}' and field.field_id = '{id}'")
+    data = cur.fetchall()
+    return data
 
 
-def sqlite3_insert_image(field_id, image):
-    cur.execute('INSERT INTO image values(\'' + field_id + '\' , \'' + image + '\')')
-
-    con.commit()
-
-
-def sqlite3_insert_data(field_id, data_id):
-    cur.execute('INSERT INTO image_data values(\'' + data_id + '\' , \'' + field_id + '\')')
-
-    con.commit()
-
-
-def sqlite3_insert_statistic(field_id, data_id, cloud_rate, index_weighted_avg, standard_deviation, unique_values_enter):
-    cur.execute('INSERT INTO statistic_info(field_id, data_id, cloud_rate, index_weighted_avg, standard_deviation, unique_values_enter)'
-                'values(\'' + field_id + '\' , \'' + data_id + '\' , \'' + cloud_rate + '\' , \''
-                '' + index_weighted_avg + '\' , \'' + standard_deviation + '\' , \'' + unique_values_enter + '\')')
-
-    con.commit()
