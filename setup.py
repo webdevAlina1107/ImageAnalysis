@@ -5,7 +5,7 @@ import os
 from setuptools import find_packages, setup
 
 directory_location = os.path.dirname(__file__)
-readme_location = os.path.join(directory_location, 'README.md')
+readme_location = os.path.join(directory_location, 'README.rst')
 requirements_location = os.path.join(directory_location, 'requirements.txt')
 
 with open(readme_location, "rb") as f:
