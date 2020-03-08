@@ -65,9 +65,9 @@ def sqlite3_filter_by_date_head(head_size, data_start, data_end):
 
 def sqlite3_visualize_statistic(id, start, end, max_cloudiness):
     cur.execute(
-        "Select index_weighted_avg, confidence_interval_lower, confidence_interval_upper from statistic_info, image, field"
+        "Select data, index_weighted_avg, confidence_interval_lower, confidence_interval_upper from statistic_info, image, field"
         "where statistic_info.image_id = image.image_id and field.field_id = image.field_id"
-        f"and data between '{start}' and '{end} ' and cloud_rate < '{max_cloudiness}' and field.field_id = '{id}'")
+        f"and data between '{start}' and '{end} ' and cloud_rate < '{max_cloudiness}' and field.field_id = '{id}' order by data asc")
     data = cur.fetchall()
     return data
 
@@ -80,4 +80,4 @@ def sqlite3_visualize_clouds(id, start, end):
     data = cur.fetchall()
     return data
 
-# get cloud 
+# get cloud
