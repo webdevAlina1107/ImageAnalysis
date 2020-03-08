@@ -26,7 +26,7 @@ setup(
     long_description=long_description,
     author="Fugol Alina, Taran Anatoly",
     author_email="webdevAlina@gmail.com",
-    url="https://github.com/Mtrqq/LPPSolver/blob/master/lpp_solver",
+    url="https://github.com/webdevAlina1107/ImageAnalysis",
     keywords=['IMAGE PROCESSING', 'CMD', 'UTILITY', 'RASTER'],
     install_requires=requirements,
     classifiers=[
