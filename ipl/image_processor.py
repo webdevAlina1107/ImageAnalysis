@@ -6,6 +6,7 @@ from typing import List, Optional
 from pprint import pformat
 
 from ipl._logging import logger, configure_logger
+from ipl.errors import IPLError
 
 
 def _parse_date(string: str):
@@ -210,9 +211,14 @@ def main():
     arguments = cmdline_arguments()
     configure_logger(is_debug=arguments.debug,
                      logs_file=arguments.log_file)
-    function = arguments.function
-    logger.debug(f'Starting target function with arguments : \n{pformat(vars(arguments), indent=4)}')
-    function(**vars(arguments))
+    try:
+        function = arguments.function
+        logger.debug(f'Starting target function with arguments : \n{pformat(vars(arguments), indent=4)}')
+        function(**vars(arguments))
+    except IPLError as error:
+        logger.critical(f'INTERNAL ERROR : "{error}"')
+    except Exception as error:
+        logger.critical(f'SOMETHING WENT WRONG : "{error}"')
 
 
 if __name__ == '__main__':

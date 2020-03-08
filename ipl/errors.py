@@ -1,0 +1,2 @@
+class IPLError(Exception):
+    pass
