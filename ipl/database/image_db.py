@@ -150,10 +150,13 @@ class ImageDatabase:
 
     @_interacts_with_database
     def select_image(self,
-                     image_id: int):
+                     image_id: int,
+                     filtered_columns: Optional[List[str]] = None):
         statement = f'SELECT * FROM image WHERE image_id = ?'
         dataframe = pd.read_sql_query(statement, self.connection, params=(image_id,))
         if dataframe.shape and dataframe.shape[0] > 0:
+            if filtered_columns:
+                dataframe = dataframe.filter(filtered_columns)
             return dataframe.iloc[[0]]
         else:
             raise IPLError(f'Image with ID = {image_id} not found !')

@@ -7,6 +7,7 @@ from typing import List, Optional, Iterable
 from itertools import tee, islice
 import pandas as pd
 from tabulate import tabulate
+import numpy as np
 import calendar
 import traceback
 
@@ -71,6 +72,10 @@ def _collect_cloudiness_data(cloudiness_data: Iterable[float],
             sum(1 for non, partially, fully in non_gen if fully))
 
 
+def _calculate_and_print_statistics(array: List[np.ndarray]):
+    pass
+
+
 def _collect_images(field_ids: List[int],
                     start_date: datetime.date,
                     end_date: datetime.date,
@@ -133,26 +138,29 @@ def visualize_clouds(id_: int,
             cloud_rates.append(cloud_rate)
             capture_dates.append(row['capture_date'])
     assert len(cloud_rates) == len(capture_dates)
-    minimal_goal_date = _add_months(capture_dates[0], 1)
-    dates_list = []
-    statistics_arrays = [[], [], []]
-    index_start, index_end = None, 0
+    if len(capture_dates) > 0:
+        minimal_goal_date = _add_months(capture_dates[0], 1)
+        dates_list = []
+        statistics_arrays = [[], [], []]
+        index_start, index_end = None, 0
 
-    def _update_statistics(new_date: datetime.date):
-        dates_list.append(new_date)
-        cloud_rates_generator = islice(cloud_rates, index_start, index_end)
-        for index_, statistics_item in enumerate(_collect_cloudiness_data(cloud_rates_generator)):
-            statistics_arrays[index_].append(statistics_item)
+        def _update_statistics(new_date: datetime.date):
+            dates_list.append(new_date)
+            cloud_rates_generator = islice(cloud_rates, index_start, index_end)
+            for index_, statistics_item in enumerate(_collect_cloudiness_data(cloud_rates_generator)):
+                statistics_arrays[index_].append(statistics_item)
 
-    for index, date in enumerate(capture_dates):
-        if date > dates_list[-1]:
-            index_start, index_end = index_end, index
-            _update_statistics(date)
-            minimal_goal_date = _add_months(date, 1)
-    index_start, index_end = index_end, len(capture_dates)
-    _update_statistics(minimal_goal_date)
-    visualization.plot_clouds_impact_for_a_period(dates_list, *statistics_arrays)
-    visualization.show_plots()
+        for index, date in enumerate(capture_dates):
+            if date > dates_list[-1]:
+                index_start, index_end = index_end, index
+                _update_statistics(date)
+                minimal_goal_date = _add_months(date, 1)
+        index_start, index_end = index_end, len(capture_dates)
+        _update_statistics(minimal_goal_date)
+        visualization.plot_clouds_impact_for_a_period(dates_list, *statistics_arrays)
+        visualization.show_plots()
+    else:
+        logger.debug('Unable to start visualization, no data found')
 
 
 def visualize_occurrences(file: Optional[str],
@@ -174,7 +182,48 @@ def visualize_statistics(id_: List[int],
                          end: datetime.date,
                          max_cloudiness: float,
                          **kwargs):
-    print('DONE')
+    database = image_db.ImageDatabaseInstance()
+    required_fields = ['image_id', 'capture_date', 'index_weighted_avg',
+                       'confidence_interval_lower', 'confidence_interval_upper']
+    have_plotted_anything = False
+    for field_id in id_:
+        cached_statistics = database.select_field_statistics(field_id=field_id,
+                                                             filtered_columns=required_fields,
+                                                             date_start=start,
+                                                             date_end=end,
+                                                             max_cloudiness=max_cloudiness)
+        cached_images_ids = set(cached_statistics['image_id'])
+        required_fields = ['image_id', 'image_data', 'capture_date']
+        other_images = database.select_field_images(field_id=field_id,
+                                                    filtered_columns=required_fields,
+                                                    date_start=start,
+                                                    date_end=end)
+        for index, image in other_images.iterrows():
+            image_id = image['image_id']
+            if image_id not in cached_images_ids:
+                bitmap: np.ndarray = image['image_data']
+                bitmap = image_anal.fill_cloud_bits_with_value(bitmap)
+                cloud_rate = image_anal.calculate_clouds_percentile(bitmap)
+                if cloud_rate < max_cloudiness:
+                    capture_date = image['capture_date']
+                    mean = np.nanmean(bitmap)
+                    lower_ci, upper_ci = image_anal.calculate_confidence_interval(bitmap)
+                    series = pd.Series([image_id, capture_date, mean, lower_ci, upper_ci],
+                                       index=cached_statistics.columns)
+                    cached_statistics.append(series, ignore_index=True)
+
+        if cached_statistics.shape and cached_statistics.shape[0]:
+            visualization.plot_statistics_for_a_period(time_stamps=cached_statistics['capture_date'],
+                                                       mean=cached_statistics['index_weighted_avg'],
+                                                       lower_ci=cached_statistics['confidence_interval_lower'],
+                                                       upper_ci=cached_statistics['confidence_interval_upper'],
+                                                       legend_name=str(field_id))
+            have_plotted_anything = True
+
+    if have_plotted_anything:
+        visualization.show_plots()
+    else:
+        logger.debug('Unable to start visualization, no data found')
 
 
 def import_images(import_location: str,
@@ -223,11 +272,19 @@ def export_images(export_location: str,
         importexport.write_image_bitmap(file_path, bitmap, driver)
 
 
-def process_images(file: Path,
+def process_images(file: str,
                    id_: List[int],
                    cache: bool,
                    **kwargs):
-    print('DONE')
+    if file:
+        processed_images = [importexport.read_image_bitmap(file)]
+    else:
+        database = image_db.ImageDatabaseInstance()
+
+        def get_image(image_id):
+            pass
+
+        processed_images = [database.select_image(image_id, ['image_data']) for image_id in id_]
 
 
 def cmdline_arguments():
