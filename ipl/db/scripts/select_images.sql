@@ -1,2 +1,2 @@
-select image_id as Image_ID, field_id as Field_ID, data as Capture_date, image_data as Image_bitmap
+select image_id, field_id, data, image_data
 from image where field_id = ? and data between ? and ?'

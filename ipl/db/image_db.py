@@ -1,5 +1,5 @@
 import datetime
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 import pandas as pd
@@ -36,6 +36,8 @@ def _interacts_with_database(function):
         except sqlite3.DatabaseError as error:
             message = f'DATABASE ERROR : "{error}"'
             raise IPLError(message)
+        except IPLError:
+            raise
         except Exception as error:
             message = f'UNEXPECTED ERROR : "{error}"'
             raise IPLError(message)
@@ -81,6 +83,8 @@ class ImageDatabase:
                      field_id: int,
                      image_bitmap: np.ndarray,
                      image_date: datetime.date):
+        if not self.check_if_field_exists(field_id):
+            self.insert_field(field_id)
         statement = _get_sql_statement('insert_image')
         self.execute_statement(statement, field_id, image_bitmap, image_date)
         return self.cursor.lastrowid
@@ -132,17 +136,27 @@ class ImageDatabase:
         return self.cursor.fetchone()
 
     @_interacts_with_database
-    def select_images(self,
-                      field_id: int,
-                      date_start: datetime.date = datetime.date.min,
-                      date_end: datetime.date = datetime.date.max,
-                      should_return_image_blob: bool = False):
+    def select_field_images(self,
+                            field_id: int,
+                            filtered_columns: Optional[List[str]] = None,
+                            date_start: datetime.date = datetime.date.min,
+                            date_end: datetime.date = datetime.date.max):
         statement = _get_sql_statement('select_images')
         query_parameters = (field_id, date_start, date_end,)
         records = pd.read_sql_query(statement, self.connection, params=query_parameters)
-        if not should_return_image_blob:
-            del records['Image_bitmap']
+        if not filtered_columns:
+            records = records.filter(filtered_columns)
         return records
+
+    @_interacts_with_database
+    def select_image(self,
+                     image_id: int):
+        statement = f'SELECT * FROM image WHERE image_id = ?'
+        dataframe = pd.read_sql_query(statement, self.connection, params=(image_id,))
+        if dataframe.shape and dataframe.shape[0] > 0:
+            return dataframe.iloc[[0]]
+        else:
+            raise IPLError(f'Image with ID = {image_id} not found !')
 
     @_interacts_with_database
     def select_fields_ids(self):
@@ -151,12 +165,16 @@ class ImageDatabase:
     @_interacts_with_database
     def select_field_statistics(self,
                                 field_id: int,
+                                filtered_columns: Optional[List[str]] = None,
                                 date_start: datetime.date = datetime.date.min,
                                 date_end: datetime.date = datetime.date.max,
                                 max_cloudiness: float = 1.0):
         statement = _get_sql_statement('select_field_statistics')
         query_parameters = (field_id, date_start, date_end, max_cloudiness,)
-        return pd.read_sql_query(statement, self.connection, params=query_parameters)
+        dataframe = pd.read_sql_query(statement, self.connection, params=query_parameters)
+        if filtered_columns:
+            return dataframe.filter(filtered_columns)
+        return dataframe
 
 
 class ImageDatabaseInstance:

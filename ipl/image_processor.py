@@ -3,16 +3,19 @@ import datetime
 import os
 from pathlib import Path
 from pprint import pformat
-from typing import List, Optional
+from typing import List, Optional, Iterable
+from itertools import tee, islice
 import pandas as pd
 from tabulate import tabulate
+import calendar
 import traceback
 
 from ipl._logging import configure_logger, logger
-from ipl.image_analysis import calculate_all_statistics
+import ipl.image_analysis as image_anal
 from ipl.errors import IPLError
 import ipl.db.image_db as image_db
-import ipl.importexport as io
+import ipl.importexport as importexport
+import ipl.visualization as visualization
 
 
 def _parse_date(string: str):
@@ -42,11 +45,37 @@ def _parse_float_in_range(string: str):
     return value
 
 
+def _add_months(initial_date: datetime.date,
+                months: int):
+    month = initial_date.month - 1 + months
+    year = initial_date.year + month
+    month = month % 12 + 1
+    month_range = calendar.monthrange(year, month)[1]
+    day = min(initial_date.day, month_range)
+    return datetime.date(year, month, day)
+
+
+def _collect_cloudiness_data(cloudiness_data: Iterable[float],
+                             epsilon: float = 0.01):
+    """Returns non-clouded, partially clouded and fully clouded count"""
+
+    def generate_estimation_tuple(cloudiness):
+        return (cloudiness < epsilon,
+                epsilon < cloudiness < 1 - epsilon,
+                cloudiness > 1 - epsilon)
+
+    non_gen, partially_gen, fully_gen = tee(generate_estimation_tuple(cloudiness)
+                                            for cloudiness in cloudiness_data)
+    return (sum(1 for non, partially, fully in non_gen if non),
+            sum(1 for non, partially, fully in non_gen if partially),
+            sum(1 for non, partially, fully in non_gen if fully))
+
+
 def _collect_images(field_ids: List[int],
                     start_date: datetime.date,
                     end_date: datetime.date,
-                    should_sort_images: bool = True,
-                    should_return_image_bitmap: bool = False):
+                    filtered_columns: Optional[List[str]] = None,
+                    should_sort_images: bool = True):
     database = image_db.ImageDatabaseInstance()
     select_images = database.select_images
     dataframes_list: List[pd.DataFrame] = []
@@ -54,7 +83,7 @@ def _collect_images(field_ids: List[int],
         field_images = select_images(field_id=field_id,
                                      date_start=start_date,
                                      date_end=end_date,
-                                     should_return_image_blob=should_return_image_bitmap)
+                                     filtered_columns=filtered_columns)
         dataframes_list.append(field_images)
 
     return pd.concat(dataframes_list, sort=should_sort_images)
@@ -65,31 +94,85 @@ def database_view(id_: List[int],
                   start: datetime.date,
                   end: datetime.date,
                   **kwargs):
+    required_columns = ['field_id', 'image_id', 'capture_date', 'mysterious_date', 'satellite']
     dataframe = _collect_images(field_ids=id_,
                                 start_date=start,
                                 end_date=end,
-                                should_return_image_bitmap=False)
+                                filtered_columns=required_columns)
     shown_dataframe = dataframe.head(head) if head else dataframe
-    print(tabulate(shown_dataframe, headers='keys', tablefmt='psql'))
+    labels = [label.replace('_', ' ').capitalize() for label in required_columns]
+    print(tabulate(shown_dataframe, headers=labels, tablefmt='psql'))
 
 
 def visualize_clouds(id_: int,
                      start: datetime.date,
                      end: datetime.date,
                      **kwargs):
-    print('DONE')
+    database = image_db.ImageDatabaseInstance()
+    required_columns = ['image_id', 'cloud_rate', 'capture_date']
+    cached_statistics = database.select_field_statistics(id_,
+                                                         filtered_columns=required_columns,
+                                                         date_start=start,
+                                                         date_end=end)
+    calculated_images_set = set(cached_statistics['image_id'])
+    cloud_rates = list(cached_statistics['cloud_rate'])
+    capture_dates = list(cached_statistics['capture_date'])
+    del cached_statistics
+
+    required_columns = ['image_id', 'image_data', 'capture_date']
+    all_images = database.select_field_images(field_id=id_,
+                                              filtered_columns=required_columns,
+                                              date_start=start,
+                                              date_end=end)
+    for index, row in all_images.iterrows():
+        image_id = row['image_id']
+        if image_id not in calculated_images_set:
+            image_bitmap = row['image_data']
+            image_bitmap = image_anal.fill_cloud_bits_with_value(image_bitmap)
+            cloud_rate = image_anal.calculate_clouds_percentile(image_bitmap)
+            cloud_rates.append(cloud_rate)
+            capture_dates.append(row['capture_date'])
+    assert len(cloud_rates) == len(capture_dates)
+    minimal_goal_date = _add_months(capture_dates[0], 1)
+    dates_list = []
+    statistics_arrays = [[], [], []]
+    index_start, index_end = None, 0
+
+    def _update_statistics(new_date: datetime.date):
+        dates_list.append(new_date)
+        cloud_rates_generator = islice(cloud_rates, index_start, index_end)
+        for index_, statistics_item in enumerate(_collect_cloudiness_data(cloud_rates_generator)):
+            statistics_arrays[index_].append(statistics_item)
+
+    for index, date in enumerate(capture_dates):
+        if date > dates_list[-1]:
+            index_start, index_end = index_end, index
+            _update_statistics(date)
+            minimal_goal_date = _add_months(date, 1)
+    index_start, index_end = index_end, len(capture_dates)
+    _update_statistics(minimal_goal_date)
+    visualization.plot_clouds_impact_for_a_period(dates_list, *statistics_arrays)
+    visualization.show_plots()
 
 
-def visualize_occurrences(file: Optional[Path],
+def visualize_occurrences(file: Optional[str],
                           id_: Optional[int],
                           **kwargs):
-    print('DONE')
+    if file:
+        bitmap = importexport.read_image_bitmap(file)
+    else:
+        database = image_db.ImageDatabaseInstance()
+        bitmap = database.select_image(id_)['image_data']
+
+    unique_value_occurs = image_anal.construct_values_occurrences_map(bitmap)
+    visualization.plot_values_frequencies(unique_value_occurs)
+    visualization.show_plots()
 
 
 def visualize_statistics(id_: List[int],
                          start: datetime.date,
                          end: datetime.date,
-                         cloudiness: float,
+                         max_cloudiness: float,
                          **kwargs):
     print('DONE')
 
@@ -98,21 +181,22 @@ def import_images(import_location: str,
                   cache: bool,
                   **kwargs):
     if os.path.isdir(import_location):
-        inserted_images_array = io.import_images_folder(import_location)
+        inserted_images_array = importexport.import_images_folder(import_location)
     else:
-        inserted_images_array = [io.import_locally_stored_image(import_location)]
+        inserted_images_array = [importexport.import_locally_stored_image(import_location)]
     database = image_db.ImageDatabaseInstance()
     inserted_images_ids = [database.insert_image(*image) for image in inserted_images_array]
     if cache:
         bitmaps_generator = (image[1] for image in inserted_images_array)
         for image_id, bitmap in zip(inserted_images_ids, bitmaps_generator):
-            statistics = calculate_all_statistics(bitmap)
+            statistics = image_anal.calculate_all_statistics(bitmap)
             database.insert_image_statistics(image_id, *statistics)
 
 
-def export_images(export_location: Path,
+def export_images(export_location: str,
                   start: datetime.date,
                   end: datetime.date,
+                  driver: str,
                   all_: bool,
                   id_: List[int],
                   **kwargs):
@@ -121,12 +205,22 @@ def export_images(export_location: Path,
     database = image_db.ImageDatabaseInstance()
     if all_:
         id_ = database.select_fields_ids()
+
     dataframe = _collect_images(field_ids=id_,
                                 start_date=start,
-                                end_date=end,
-                                should_return_image_bitmap=True)
+                                end_date=end)
+
+    selected_extension = importexport.SupportedDrivers[driver].value
+
     for index, row in dataframe.iterrows():
-        pass
+        capture_date = row['capture_date']
+        satellite = row['satellite']
+        mysterious_date = row['mysterious_date']
+        field_id = row['field_id']
+        bitmap = row['image_data']
+        file_name = f'{capture_date}_{field_id}_{mysterious_date}_{satellite}.{selected_extension}'
+        file_path = os.path.join(export_location, file_name)
+        importexport.write_image_bitmap(file_path, bitmap, driver)
 
 
 def process_images(file: Path,
@@ -157,10 +251,14 @@ def cmdline_arguments():
     import_parser.set_defaults(function=import_images)
 
     # EXPORT SUBPARSER
+    drivers_list = importexport.SupportedDrivers.drivers_list()
 
     export_parser = subparsers.add_parser('export', help='Exports images out of database')
     export_parser.add_argument('export_location', type=str, metavar='PATH/TO/EXPORT/FOLDER',
                                help='Location of folder to export selected data')
+    export_parser.add_argument('--driver', type=str, choices=drivers_list,
+                               dest='driver', default='GTiff',
+                               help='Driver for image exporting')
     export_parser.add_argument('--start_date', dest='start', type=_parse_date, default=datetime.date.min,
                                help='Start date of a timeline', metavar='DD/MM/YYYY')
     export_parser.add_argument('--end_date', dest='end', type=_parse_date, default=datetime.date.max,
@@ -242,7 +340,7 @@ def cmdline_arguments():
                                    help='Start of analysed timeline', metavar='DD/MM/YYYY')
     statistics_parser.add_argument('--end_date', dest='end', default=datetime.date.max, type=_parse_date,
                                    help='End of analysed timeline', metavar='DD/MM/YYYY')
-    statistics_parser.add_argument('--max_cloudiness', dest='cloudiness', default=0.5, type=_parse_float_in_range,
+    statistics_parser.add_argument('--max_cloudiness', dest='max_cloudiness', default=0.5, type=_parse_float_in_range,
                                    metavar='[0.0, 1.0]', help='Filtering cloudiness percent')
     statistics_parser.set_defaults(function=visualize_statistics)
 

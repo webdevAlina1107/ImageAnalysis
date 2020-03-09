@@ -1,3 +1,4 @@
+from enum import Enum
 import datetime
 import os
 
@@ -12,12 +13,37 @@ from ipl.errors import IPLError
 IMAGE_FILE_NAME_PATTERN = re.compile(r"^(.+)_(.+)_.+_(.+)_.+$")
 
 
-def read_image_bitmap(image_file_path: str,
-                      selected_band: int = 1
-                      ) -> np.ndarray:
-    logger.debug(f'Reading image at {image_file_path}, band = {selected_band}')
+class SupportedDrivers(Enum):
+    PNG = '.png'
+    GTiff = '.tiff'
+    GIF = '.gif'
+    BMP = '.bmp'
+    JPEG = '.jpg'
+
+    @classmethod
+    def drivers_list(cls):
+        return list(cls.__members__.keys())
+
+
+def read_image_bitmap(image_file_path: str) -> np.ndarray:
+    logger.debug(f'Reading image at {image_file_path}, band = 1')
     with rast.open(image_file_path, 'r', dtype=IMAGE_DATA_TYPE) as raster:
-        return raster.read(selected_band)
+        return raster.read(1)
+
+
+def write_image_bitmap(image_file_path: str,
+                       array: np.ndarray,
+                       selected_driver: str = 'GTiff'):
+    logger.debug(f'Writing image data to "{image_file_path}"')
+    width, height = array.shape
+    sharing_mode_on = selected_driver == 'GTiff'
+    try:
+        with rast.open(image_file_path, mode='w', driver=selected_driver,
+                       width=width, height=height, count=1, dtype=IMAGE_DATA_TYPE,
+                       sharing=sharing_mode_on) as image_file:
+            image_file.write(array, 1)
+    except rast.RasterioIOError as error:
+        raise IPLError(f'Unable to export image, reason : {error}')
 
 
 def parse_image_file_name(image_file_path: str):
