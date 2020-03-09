@@ -1,1 +1,0 @@
-select exists(select 1 from field where image_id=? limit 1)

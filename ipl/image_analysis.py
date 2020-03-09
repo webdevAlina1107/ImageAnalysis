@@ -20,14 +20,6 @@ def fill_cloud_bits_with_value(array: np.ndarray,
     return masked_array.filled(clouds_special_value)
 
 
-def read_image_bitmap(image_file_path: Path,
-                      selected_band: int = 1
-                      ) -> np.ndarray:
-    logger.debug(f'Reading image at {image_file_path}, band = {selected_band}')
-    with rast.open(image_file_path, 'r', dtype=IMAGE_DATA_TYPE) as raster:
-        return raster.read(selected_band)
-
-
 def construct_values_occurrences_map(array: np.ndarray):
     unique_values, counts = np.unique(array, return_counts=True)
     logger.debug('Constructing value occurrences map in matrix')
@@ -48,3 +40,12 @@ def calculate_confidence_interval(array: np.ndarray,
                             len(array) - 1,
                             loc=array.mean(),
                             scale=stats.sem(array))
+
+
+def calculate_all_statistics(array: np.ndarray):
+    array = fill_cloud_bits_with_value(array)
+    cloud_rate = calculate_clouds_percentile(array)
+    ci_lower, ci_upper = calculate_confidence_interval(array)
+    mean = np.nanmean(array)
+    std = np.nanstd(array)
+    return cloud_rate, mean, std, ci_lower, ci_upper

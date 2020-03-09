@@ -1,1 +1,0 @@
-insert into statistic_info values(?,?,?,?,?,?)

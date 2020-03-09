@@ -4,9 +4,15 @@ import os
 from pathlib import Path
 from pprint import pformat
 from typing import List, Optional
+import pandas as pd
+from tabulate import tabulate
+import traceback
 
 from ipl._logging import configure_logger, logger
+from ipl.image_analysis import calculate_all_statistics
 from ipl.errors import IPLError
+import ipl.db.image_db as image_db
+import ipl.importexport as io
 
 
 def _parse_date(string: str):
@@ -37,12 +43,24 @@ def _parse_float_in_range(string: str):
 
 
 def database_view(id_: List[int],
-                  all_: bool,
                   head: Optional[int],
                   start: datetime.date,
                   end: datetime.date,
                   **kwargs):
-    print('DONE')
+    database = image_db.ImageDatabaseInstance()
+    select_images = database.select_images
+    dataframes_list: List[pd.DataFrame] = []
+    for field_id in id_:
+        field_images = select_images(field_id=field_id,
+                                     date_start=start,
+                                     date_end=end,
+                                     fetch_limit=head,
+                                     should_return_image_blob=False)
+        dataframes_list.append(field_images)
+
+    concatenated_dfs = pd.concat(dataframes_list, sort=True)
+    shown_dataframe = concatenated_dfs.head(head) if head else concatenated_dfs
+    print(tabulate(shown_dataframe, headers='keys', tablefmt='psql'))
 
 
 def visualize_clouds(id_: int,
@@ -66,10 +84,20 @@ def visualize_statistics(id_: List[int],
     print('DONE')
 
 
-def import_images(import_location: Path,
+def import_images(import_location: str,
                   cache: bool,
                   **kwargs):
-    print('DONE')
+    if os.path.isdir(import_location):
+        inserted_images_array = io.import_images_folder(import_location)
+    else:
+        inserted_images_array = [io.import_locally_stored_image(import_location)]
+    database = image_db.ImageDatabaseInstance()
+    inserted_images_ids = [database.insert_image(*image) for image in inserted_images_array]
+    if cache:
+        bitmaps_generator = (image[1] for image in inserted_images_array)
+        for image_id, bitmap in zip(inserted_images_ids, bitmaps_generator):
+            statistics = calculate_all_statistics(bitmap)
+            database.insert_image_statistics(image_id, *statistics)
 
 
 def export_images(export_location: Path,
@@ -215,10 +243,13 @@ def main():
         function = arguments.function
         logger.debug(f'Starting target function with arguments : \n{pformat(vars(arguments), indent=4)}')
         function(**vars(arguments))
+        logger.debug('Action succeeded !')
     except IPLError as error:
-        logger.critical(f'INTERNAL ERROR : "{error}"')
+        logger.critical(f'Database error : "{error}"')
+        logger.debug(traceback.format_exc())
     except Exception as error:
-        logger.critical(f'SOMETHING WENT WRONG : "{error}"')
+        logger.critical(f'Something went wrong : "{error}"')
+        logger.debug(traceback.format_exc())
 
 
 if __name__ == '__main__':
