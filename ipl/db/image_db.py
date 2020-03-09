@@ -145,6 +145,10 @@ class ImageDatabase:
         return records
 
     @_interacts_with_database
+    def select_fields_ids(self):
+        return pd.read_sql_table('field', self.connection)['field_id']
+
+    @_interacts_with_database
     def select_field_statistics(self,
                                 field_id: int,
                                 date_start: datetime.date = datetime.date.min,

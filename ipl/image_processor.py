@@ -42,24 +42,34 @@ def _parse_float_in_range(string: str):
     return value
 
 
+def _collect_images(field_ids: List[int],
+                    start_date: datetime.date,
+                    end_date: datetime.date,
+                    should_sort_images: bool = True,
+                    should_return_image_bitmap: bool = False):
+    database = image_db.ImageDatabaseInstance()
+    select_images = database.select_images
+    dataframes_list: List[pd.DataFrame] = []
+    for field_id in field_ids:
+        field_images = select_images(field_id=field_id,
+                                     date_start=start_date,
+                                     date_end=end_date,
+                                     should_return_image_blob=should_return_image_bitmap)
+        dataframes_list.append(field_images)
+
+    return pd.concat(dataframes_list, sort=should_sort_images)
+
+
 def database_view(id_: List[int],
                   head: Optional[int],
                   start: datetime.date,
                   end: datetime.date,
                   **kwargs):
-    database = image_db.ImageDatabaseInstance()
-    select_images = database.select_images
-    dataframes_list: List[pd.DataFrame] = []
-    for field_id in id_:
-        field_images = select_images(field_id=field_id,
-                                     date_start=start,
-                                     date_end=end,
-                                     fetch_limit=head,
-                                     should_return_image_blob=False)
-        dataframes_list.append(field_images)
-
-    concatenated_dfs = pd.concat(dataframes_list, sort=True)
-    shown_dataframe = concatenated_dfs.head(head) if head else concatenated_dfs
+    dataframe = _collect_images(field_ids=id_,
+                                start_date=start,
+                                end_date=end,
+                                should_return_image_bitmap=False)
+    shown_dataframe = dataframe.head(head) if head else dataframe
     print(tabulate(shown_dataframe, headers='keys', tablefmt='psql'))
 
 
@@ -106,7 +116,17 @@ def export_images(export_location: Path,
                   all_: bool,
                   id_: List[int],
                   **kwargs):
-    print('DONE')
+    if not os.path.isdir(export_location):
+        raise IPLError('Unable to export data to non-existent directory')
+    database = image_db.ImageDatabaseInstance()
+    if all_:
+        id_ = database.select_fields_ids()
+    dataframe = _collect_images(field_ids=id_,
+                                start_date=start,
+                                end_date=end,
+                                should_return_image_bitmap=True)
+    for index, row in dataframe.iterrows():
+        pass
 
 
 def process_images(file: Path,
