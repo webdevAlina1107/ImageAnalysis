@@ -13,7 +13,7 @@ import traceback
 from ipl._logging import configure_logger, logger
 import ipl.image_analysis as image_anal
 from ipl.errors import IPLError
-import ipl.db.image_db as image_db
+import ipl.database.image_db as image_db
 import ipl.importexport as importexport
 import ipl.visualization as visualization
 

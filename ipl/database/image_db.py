@@ -11,7 +11,7 @@ import io
 from ipl.errors import IPLError
 
 FILE_LOCATION = os.path.abspath(os.path.dirname(__file__))
-DATABASE_LOCATION = os.path.join(FILE_LOCATION, 'datasource', 'images.db')
+DATABASE_LOCATION = os.path.join(FILE_LOCATION, 'datasource', 'images.database')
 SCRIPTS_STORAGE: str = os.path.join(FILE_LOCATION, 'scripts')
 SCRIPT_EXTENSION: str = '.sql'
 
