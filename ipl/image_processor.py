@@ -72,8 +72,24 @@ def _collect_cloudiness_data(cloudiness_data: Iterable[float],
             sum(1 for non, partially, fully in non_gen if fully))
 
 
-def _calculate_and_print_statistics(array: List[np.ndarray]):
-    pass
+def _calculate_images_statistics(images_array: List[np.ndarray],
+                                 index: Optional[np.ndarray] = None):
+    cloud_rate = np.empty(len(images_array), np.double)
+    average = np.empty(len(images_array), np.double)
+    std = np.empty(len(images_array), np.double)
+    ci_lower = np.empty(len(images_array), np.double)
+    ci_upper = np.empty(len(images_array), np.double)
+
+    for index, image in enumerate(images_array):
+        image = image_anal.fill_cloud_bits_with_value(image)
+        cloud_rate[index] = image_anal.calculate_clouds_percentile(image)
+        average[index] = np.nanmean(image)
+        std[index] = np.nanstd(image)
+        ci_lower[index], ci_upper[index] = image_anal.calculate_confidence_interval(image)
+
+    collapsed_array = np.array([cloud_rate, average, std, ci_lower, ci_upper])
+    columns = ['cloud_rate', 'ndvi_average', 'standard deviation', 'ci_lower', 'ci_upper']
+    return pd.DataFrame(collapsed_array, columns=columns, index=index)
 
 
 def _collect_images(field_ids: List[int],
@@ -272,19 +288,32 @@ def export_images(export_location: str,
         importexport.write_image_bitmap(file_path, bitmap, driver)
 
 
-def process_images(file: str,
-                   id_: List[int],
+def process_images(file: Optional[str],
+                   id_: Optional[List[int]],
                    cache: bool,
                    **kwargs):
     if file:
         processed_images = [importexport.read_image_bitmap(file)]
     else:
         database = image_db.ImageDatabaseInstance()
+        required_fields = ['image_data', 'image_id']
+        images_data = [database.select_image(image_id, required_fields) for image_id in id_]
+        id_ = images_data['image_id']
+        processed_images = images_data['image_data']
 
-        def get_image(image_id):
-            pass
-
-        processed_images = [database.select_image(image_id, ['image_data']) for image_id in id_]
+    dataframe = _calculate_images_statistics(processed_images, id_)
+    labels = [label.replace('_', ' ').capitalize() for label in dataframe.columns.values]
+    print(tabulate(dataframe, headers=labels, tablefmt='psql'))
+    if cache and id_:
+        database = image_db.ImageDatabaseInstance()
+        for image_id, (index, row) in zip(id_, dataframe.iterrows()):
+            cloud_rate = row['cloud_rate']
+            ndvi_average = row['ndvi_average']
+            std = row['standard_deviation']
+            lower_ci = row['lower_ci']
+            upper_ci = row['upper_ci']
+            database.insert_image_statistics(image_id, cloud_rate, ndvi_average,
+                                             std, lower_ci, upper_ci)
 
 
 def cmdline_arguments():
