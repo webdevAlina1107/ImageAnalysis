@@ -10,7 +10,7 @@ from ipl.image_analysis import IMAGE_DATA_TYPE
 from ipl._logging import logger
 from ipl.errors import IPLError
 
-IMAGE_FILE_NAME_PATTERN = re.compile(r"^(.+)_(.+)_.+_(.+)_.+$")
+IMAGE_FILE_NAME_PATTERN = re.compile(r"^(.+)_(.+)_.+_(.+)_(.+)$")
 
 
 class SupportedDrivers(Enum):
@@ -50,9 +50,11 @@ def parse_image_file_name(image_file_path: str):
     basename = os.path.splitext(os.path.basename(image_file_path))[0]
     match = re.fullmatch(IMAGE_FILE_NAME_PATTERN, basename)
     if match:
-        timestamp = datetime.datetime.strptime(match.group(1), "%d%m%Y").date()
+        capture_date = datetime.datetime.strptime(match.group(1), "%d%m%Y").date()
         field_id = match.group(2)  # I am not sure
-        return field_id, timestamp
+        mysterious_date = datetime.datetime.strptime(match.group(3)[1:], "%Y%m%d").date()
+        satellite = match.group(4)
+        return field_id, capture_date, mysterious_date, satellite
     else:
         return None
 
@@ -61,9 +63,9 @@ def import_locally_stored_image(image_file_path: str):
     try:
         file_meta_info = parse_image_file_name(image_file_path)
         if file_meta_info:
-            timestamp, field_id = file_meta_info
+            field_id, capture_date, mysterious_date, satellite = file_meta_info
             bitmap = read_image_bitmap(image_file_path)
-            return field_id, bitmap, timestamp
+            return field_id, bitmap, capture_date, satellite, mysterious_date
         else:
             return None
     except Exception as error:

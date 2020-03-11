@@ -9,9 +9,10 @@ import os
 import io
 
 from ipl.errors import IPLError
+from ipl._logging import logger
 
 FILE_LOCATION = os.path.abspath(os.path.dirname(__file__))
-DATABASE_LOCATION = os.path.join(FILE_LOCATION, 'datasource', 'images.database')
+DATABASE_LOCATION = os.path.join(FILE_LOCATION, 'datasource', 'images.db')
 SCRIPTS_STORAGE: str = os.path.join(FILE_LOCATION, 'scripts')
 SCRIPT_EXTENSION: str = '.sql'
 
@@ -31,39 +32,44 @@ def _interacts_with_database(function):
         try:
             return function(*args, **kwargs)
         except sqlite3.DataError as error:
-            message = f'DATA ERROR : "{error}"'
+            message = f'Data error : {error}'
             raise IPLError(message)
         except sqlite3.DatabaseError as error:
-            message = f'DATABASE ERROR : "{error}"'
+            message = f'Database error @ {error}'
             raise IPLError(message)
         except IPLError:
             raise
         except Exception as error:
-            message = f'UNEXPECTED ERROR : "{error}"'
+            message = f'Unexpected error @ {error}'
             raise IPLError(message)
 
     return wrapper
 
 
-def _adapt_array(array: np.ndarray) -> memoryview:
-    buffer = io.BytesIO()
-    np.save(buffer, array)
-    buffer.seek(0)
-    return sqlite3.Binary(buffer.read())
+def _adapt_array(arr):
+    print(arr)
+    print(arr.shape)
+    out = io.BytesIO()
+    np.save(out, arr)
+    out.seek(0)
+    return sqlite3.Binary(out.read())
 
 
-def _convert_array(text: bytes) -> np.ndarray:
-    buffer = io.BytesIO(text)
-    buffer.seek(0)
-    return np.load(buffer)
+def _convert_array(text):
+    out = io.BytesIO(text)
+    out.seek(0)
+    return np.load(out)
 
 
 class ImageDatabase:
     def __init__(self,
                  db_location: str = DATABASE_LOCATION):
+        logger.debug('Registering adapters')
         sqlite3.register_adapter(np.ndarray, _adapt_array)
         sqlite3.register_converter("np_array", _convert_array)
-        self.connection = sqlite3.connect(db_location)
+        logger.debug(f'Connecting to database at "{db_location}"')
+        self.connection = sqlite3.connect(db_location, detect_types=sqlite3.PARSE_DECLTYPES)
+        logger.debug('Connected successfully !')
         self.cursor = self.connection.cursor()
 
     def execute_statement(self,
@@ -82,18 +88,23 @@ class ImageDatabase:
     def insert_image(self,
                      field_id: int,
                      image_bitmap: np.ndarray,
-                     image_date: datetime.date):
+                     capture_date: datetime.date,
+                     capture_satellite: str,
+                     mysterious_date: datetime.date):
         if not self.check_if_field_exists(field_id):
             self.insert_field(field_id)
         statement = _get_sql_statement('insert_image')
-        self.execute_statement(statement, field_id, image_bitmap, image_date)
+        with self.connection:
+            self.execute_statement(statement, field_id, image_bitmap,
+                                   capture_date, capture_satellite, mysterious_date)
         return self.cursor.lastrowid
 
     @_interacts_with_database
     def insert_field(self,
                      field_id: int):
         statement = _get_sql_statement('insert_field')
-        self.execute_statement(statement, field_id)
+        with self.connection:
+            self.execute_statement(statement, field_id)
         return field_id
 
     @_interacts_with_database
@@ -105,13 +116,14 @@ class ImageDatabase:
                                 confidence_interval_lower: float,
                                 confidence_interval_upper: float):
         statement = _get_sql_statement('insert_image_statistics')
-        self.execute_statement(statement,
-                               image_id,
-                               cloudiness,
-                               index_average,
-                               standard_deviation,
-                               confidence_interval_lower,
-                               confidence_interval_upper)
+        with self.connection:
+            self.execute_statement(statement,
+                                   image_id,
+                                   cloudiness,
+                                   index_average,
+                                   standard_deviation,
+                                   confidence_interval_lower,
+                                   confidence_interval_upper)
         return self.cursor.lastrowid
 
     @_interacts_with_database
@@ -119,21 +131,21 @@ class ImageDatabase:
                               field_id: int):
         statement = _get_sql_statement('check_if_field_exists')
         self.execute_statement(statement, field_id)
-        return self.cursor.fetchone()
+        return self.cursor.fetchone()[0]
 
     @_interacts_with_database
     def check_if_image_exist(self,
                              image_id: int):
         statement = _get_sql_statement('check_if_image_exist')
         self.execute_statement(statement, image_id)
-        return self.cursor.fetchone()
+        return self.cursor.fetchone()[0]
 
     @_interacts_with_database
     def check_if_has_cached_statistics(self,
                                        image_id: int):
         statement = _get_sql_statement('check_if_has_cached_statistics')
         self.execute_statement(statement, image_id)
-        return self.cursor.fetchone()
+        return self.cursor.fetchone()[0]
 
     @_interacts_with_database
     def select_field_images(self,
@@ -163,7 +175,8 @@ class ImageDatabase:
 
     @_interacts_with_database
     def select_fields_ids(self):
-        return pd.read_sql_table('field', self.connection)['field_id']
+        statement = 'SELECT field_id from field'
+        return pd.read_sql_query(statement, self.connection)['field_id']
 
     @_interacts_with_database
     def select_field_statistics(self,

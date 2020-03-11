@@ -1,7 +1,6 @@
 import argparse
 import datetime
 import os
-from pathlib import Path
 from pprint import pformat
 from typing import List, Optional, Iterable
 from itertools import tee, islice
@@ -73,23 +72,24 @@ def _collect_cloudiness_data(cloudiness_data: Iterable[float],
 
 
 def _calculate_images_statistics(images_array: List[np.ndarray],
-                                 index: Optional[np.ndarray] = None):
+                                 index_column: Optional[np.ndarray] = None):
     cloud_rate = np.empty(len(images_array), np.double)
     average = np.empty(len(images_array), np.double)
     std = np.empty(len(images_array), np.double)
     ci_lower = np.empty(len(images_array), np.double)
     ci_upper = np.empty(len(images_array), np.double)
 
-    for index, image in enumerate(images_array):
+    for index_, image in enumerate(images_array):
+        average[index_] = np.mean(image)
+        std[index_] = np.std(image)
+        ci_lower[index_], ci_upper[index_] = image_anal.calculate_confidence_interval(image)
         image = image_anal.fill_cloud_bits_with_value(image)
-        cloud_rate[index] = image_anal.calculate_clouds_percentile(image)
-        average[index] = np.nanmean(image)
-        std[index] = np.nanstd(image)
-        ci_lower[index], ci_upper[index] = image_anal.calculate_confidence_interval(image)
+        cloud_rate[index_] = image_anal.calculate_clouds_percentile(image)
 
-    collapsed_array = np.array([cloud_rate, average, std, ci_lower, ci_upper])
+    data_sources = (cloud_rate, average, std, ci_lower, ci_upper)
     columns = ['cloud_rate', 'ndvi_average', 'standard deviation', 'ci_lower', 'ci_upper']
-    return pd.DataFrame(collapsed_array, columns=columns, index=index)
+    df_initializer = {label: source for label, source in zip(columns, data_sources)}
+    return pd.DataFrame(df_initializer, columns=columns, index=index_column)
 
 
 def _collect_images(field_ids: List[int],
@@ -98,7 +98,8 @@ def _collect_images(field_ids: List[int],
                     filtered_columns: Optional[List[str]] = None,
                     should_sort_images: bool = True):
     database = image_db.ImageDatabaseInstance()
-    select_images = database.select_images
+
+    select_images = database.select_field_images
     dataframes_list: List[pd.DataFrame] = []
     for field_id in field_ids:
         field_images = select_images(field_id=field_id,
@@ -107,22 +108,31 @@ def _collect_images(field_ids: List[int],
                                      filtered_columns=filtered_columns)
         dataframes_list.append(field_images)
 
-    return pd.concat(dataframes_list, sort=should_sort_images)
+    if dataframes_list:
+        return pd.concat(dataframes_list, sort=should_sort_images)
+    else:
+        return None
 
 
-def database_view(id_: List[int],
+def database_view(id_: Optional[List[int]],
                   head: Optional[int],
                   start: datetime.date,
                   end: datetime.date,
                   **kwargs):
     required_columns = ['field_id', 'image_id', 'capture_date', 'mysterious_date', 'satellite']
+    database = image_db.ImageDatabaseInstance()
+    if not id_:
+        id_ = database.select_fields_ids()
     dataframe = _collect_images(field_ids=id_,
                                 start_date=start,
                                 end_date=end,
                                 filtered_columns=required_columns)
-    shown_dataframe = dataframe.head(head) if head else dataframe
-    labels = [label.replace('_', ' ').capitalize() for label in required_columns]
-    print(tabulate(shown_dataframe, headers=labels, tablefmt='psql'))
+    if dataframe:
+        shown_dataframe = dataframe.head(head) if head else dataframe
+        labels = [label.replace('_', ' ').capitalize() for label in required_columns]
+        print(tabulate(shown_dataframe, headers=labels, tablefmt='psql'))
+    else:
+        print("No suitable records found !")
 
 
 def visualize_clouds(id_: int,
@@ -242,20 +252,24 @@ def visualize_statistics(id_: List[int],
         logger.debug('Unable to start visualization, no data found')
 
 
-def import_images(import_location: str,
+def import_images(import_location: List[str],
                   cache: bool,
                   **kwargs):
-    if os.path.isdir(import_location):
-        inserted_images_array = importexport.import_images_folder(import_location)
-    else:
-        inserted_images_array = [importexport.import_locally_stored_image(import_location)]
-    database = image_db.ImageDatabaseInstance()
-    inserted_images_ids = [database.insert_image(*image) for image in inserted_images_array]
-    if cache:
-        bitmaps_generator = (image[1] for image in inserted_images_array)
-        for image_id, bitmap in zip(inserted_images_ids, bitmaps_generator):
-            statistics = image_anal.calculate_all_statistics(bitmap)
-            database.insert_image_statistics(image_id, *statistics)
+    for location in import_location:
+        if os.path.isdir(location):
+            inserted_images_array = importexport.import_images_folder(location)
+        else:
+            inserted_images_array = [importexport.import_locally_stored_image(location)]
+        database = image_db.ImageDatabaseInstance()
+        for field_id in (image_data[0] for image_data in inserted_images_array):
+            if not database.check_if_field_exists(field_id):
+                database.insert_field(field_id)
+        inserted_images_ids = [database.insert_image(*image) for image in inserted_images_array]
+        if cache:
+            bitmaps_generator = (image[1] for image in inserted_images_array)
+            for image_id, bitmap in zip(inserted_images_ids, bitmaps_generator):
+                statistics = image_anal.calculate_all_statistics(bitmap)
+                database.insert_image_statistics(image_id, *statistics)
 
 
 def export_images(export_location: str,
@@ -298,8 +312,8 @@ def process_images(file: Optional[str],
         database = image_db.ImageDatabaseInstance()
         required_fields = ['image_data', 'image_id']
         images_data = [database.select_image(image_id, required_fields) for image_id in id_]
-        id_ = images_data['image_id']
-        processed_images = images_data['image_data']
+        id_ = [data['image_id'] for data in images_data]
+        processed_images = [data['image_data'][0] for data in images_data]
 
     dataframe = _calculate_images_statistics(processed_images, id_)
     labels = [label.replace('_', ' ').capitalize() for label in dataframe.columns.values]
@@ -307,13 +321,14 @@ def process_images(file: Optional[str],
     if cache and id_:
         database = image_db.ImageDatabaseInstance()
         for image_id, (index, row) in zip(id_, dataframe.iterrows()):
-            cloud_rate = row['cloud_rate']
-            ndvi_average = row['ndvi_average']
-            std = row['standard_deviation']
-            lower_ci = row['lower_ci']
-            upper_ci = row['upper_ci']
-            database.insert_image_statistics(image_id, cloud_rate, ndvi_average,
-                                             std, lower_ci, upper_ci)
+            if not database.check_if_has_cached_statistics(image_id):
+                cloud_rate = row['cloud_rate']
+                ndvi_average = row['ndvi_average']
+                std = row['standard_deviation']
+                lower_ci = row['lower_ci']
+                upper_ci = row['upper_ci']
+                database.insert_image_statistics(image_id, cloud_rate, ndvi_average,
+                                                 std, lower_ci, upper_ci)
 
 
 def cmdline_arguments():
@@ -433,7 +448,7 @@ def cmdline_arguments():
     arguments = parser.parse_args()
 
     if arguments.command == 'process':
-        if arguments.file and (arguments.id or arguments.cache):
+        if arguments.file and (arguments.id_ or arguments.cache) or (not arguments.file and not arguments.id_):
             parser.error('Unable to parse mutually exclusive group ["file"] and ["id", "calculations_cache"]')
 
     return arguments
@@ -449,10 +464,10 @@ def main():
         function(**vars(arguments))
         logger.debug('Action succeeded !')
     except IPLError as error:
-        logger.critical(f'Database error : "{error}"')
+        logger.critical(f'Database error @ {error}')
         logger.debug(traceback.format_exc())
     except Exception as error:
-        logger.critical(f'Something went wrong : "{error}"')
+        logger.critical(f'Something went wrong @ {error}')
         logger.debug(traceback.format_exc())
 
 

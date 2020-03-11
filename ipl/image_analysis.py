@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import numpy as np
-import rasterio as rast
 import scipy.stats as stats
 
 from ipl._logging import logger
@@ -36,16 +35,17 @@ def calculate_clouds_percentile(array: np.ndarray,
 def calculate_confidence_interval(array: np.ndarray,
                                   confidence_percent: float = 0.95):
     logger.debug(f'Calculating confidence interval with confidence percent {confidence_percent}')
-    return stats.t.interval(confidence_percent,
-                            len(array) - 1,
-                            loc=array.mean(),
-                            scale=stats.sem(array))
+    array_mean = np.nanmean(array)
+    sd = np.sqrt(np.nansum(np.power(array - array_mean, 2)) / array.size - 1)
+    alpha = 1 - confidence_percent
+    interval = stats.t.ppf(1.0 - (alpha / 2.0), array.size - 1) * (sd / np.sqrt(array.size))
+    return array_mean - interval, array_mean + interval
 
 
 def calculate_all_statistics(array: np.ndarray):
+    ci_lower, ci_upper = calculate_confidence_interval(array)
+    mean = np.mean(array)
+    std = np.std(array)
     array = fill_cloud_bits_with_value(array)
     cloud_rate = calculate_clouds_percentile(array)
-    ci_lower, ci_upper = calculate_confidence_interval(array)
-    mean = np.nanmean(array)
-    std = np.nanstd(array)
     return cloud_rate, mean, std, ci_lower, ci_upper
