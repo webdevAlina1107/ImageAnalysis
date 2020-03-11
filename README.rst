@@ -4,7 +4,8 @@ Image processing library
 Brief description
 -----------------
 
-Utility which allows you to store and process field's images. Visualize images data via convenient command line and big amount of settings.
+Utility which allows you to store and process field's images.
+Visualize images data using convenient command line interface.
 
 Requirements
 ------------
@@ -20,8 +21,6 @@ Import
 Note that to import file it follow naming convention to provide meta
 information about file
 
-File name pattern := TBD
-
 -  Import picture
 -  Import set of pictures
 -  Import with caching statistical data
@@ -30,8 +29,7 @@ Export
 ------
 
 -  Export images on a certain timeline by id
--  Export all data into folder
--  Export image statistics into excel file
+-  Export all images into folder
 
 Processing
 ----------
@@ -43,8 +41,8 @@ Visualization
 -------------
 
 -  Histogram to visualize cloudiness of images on a timeline
--  Histogram to visualize image bits occurences of an image
--  Diagram to visualize multiple datasets statistical data
+-  Histogram to visualize image bits occurrences of an image
+-  Diagram to visualize multiple data sets statistical data
 
 View database
 -------------
