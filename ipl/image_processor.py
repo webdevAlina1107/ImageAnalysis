@@ -89,7 +89,11 @@ def _calculate_images_statistics(images_array: List[np.ndarray],
     data_sources = (cloud_rate, average, std, ci_lower, ci_upper)
     columns = ['cloud_rate', 'ndvi_average', 'standard deviation', 'ci_lower', 'ci_upper']
     df_initializer = {label: source for label, source in zip(columns, data_sources)}
-    return pd.DataFrame(df_initializer, columns=columns, index=index_column)
+    dataframe = pd.DataFrame(df_initializer)
+    if index_column:
+        dataframe['Image ID'] = index_column
+        dataframe.set_index('Image ID')
+    return dataframe
 
 
 def _collect_images(field_ids: List[int],
@@ -304,12 +308,15 @@ def export_images(export_location: str,
 
 def process_images(file: Optional[str],
                    id_: Optional[List[int]],
+                   all_: bool,
                    cache: bool,
                    **kwargs):
     if file:
         processed_images = [importexport.read_image_bitmap(file)]
     else:
         database = image_db.ImageDatabaseInstance()
+        if all_:
+            id_ = database.select_images_ids()
         required_fields = ['image_data', 'image_id']
         images_data = [database.select_image(image_id, required_fields) for image_id in id_]
         id_ = [data['image_id'] for data in images_data]
@@ -376,8 +383,11 @@ def cmdline_arguments():
     processing_parser = subparsers.add_parser('process', help='Process an image in a database or file')
     processing_parser.add_argument('--file', dest='file', default=None, type=_parse_file_path,
                                    help='Path to image file', metavar='PATH/TO/IMAGE')
-    processing_parser.add_argument('--id', dest='id_', default=None, type=int, nargs='+',
-                                   metavar='IMAGE_ID', help='IDs of processed images')
+    db_images_selection = processing_parser.add_mutually_exclusive_group()
+    db_images_selection.add_argument('--id', dest='id_', default=None, type=int, nargs='+',
+                                     metavar='IMAGE_ID', help='IDs of processed images')
+    db_images_selection.add_argument('--all', dest='all_', action='store_true',
+                                     help='Processes all images in database')
     processing_parser.add_argument('-cc', '--calculations_cache', dest='cache', action='store_true',
                                    help='Enables calculations caching')
     processing_parser.set_defaults(function=process_images)
@@ -448,7 +458,8 @@ def cmdline_arguments():
     arguments = parser.parse_args()
 
     if arguments.command == 'process':
-        if arguments.file and (arguments.id_ or arguments.cache) or (not arguments.file and not arguments.id_):
+        if arguments.file and (arguments.id_ or arguments.all_) or (not arguments.file and not arguments.id_
+                                                                    and not arguments.all_):
             parser.error('Unable to parse mutually exclusive group ["file"] and ["id", "calculations_cache"]')
 
     return arguments

@@ -47,8 +47,6 @@ def _interacts_with_database(function):
 
 
 def _adapt_array(arr):
-    print(arr)
-    print(arr.shape)
     out = io.BytesIO()
     np.save(out, arr)
     out.seek(0)
@@ -172,6 +170,11 @@ class ImageDatabase:
             return dataframe.iloc[[0]]
         else:
             raise IPLError(f'Image with ID = {image_id} not found !')
+
+    @_interacts_with_database
+    def select_images_ids(self):
+        statement = 'SELECT image_id from image'
+        return pd.read_sql_query(statement, self.connection)['image_id']
 
     @_interacts_with_database
     def select_fields_ids(self):

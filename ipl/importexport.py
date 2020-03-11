@@ -47,6 +47,7 @@ def write_image_bitmap(image_file_path: str,
 
 
 def parse_image_file_name(image_file_path: str):
+    logger.debug(f'Parsing file meta info @ "{image_file_path}"')
     basename = os.path.splitext(os.path.basename(image_file_path))[0]
     match = re.fullmatch(IMAGE_FILE_NAME_PATTERN, basename)
     if match:
@@ -64,6 +65,7 @@ def import_locally_stored_image(image_file_path: str):
         file_meta_info = parse_image_file_name(image_file_path)
         if file_meta_info:
             field_id, capture_date, mysterious_date, satellite = file_meta_info
+            logger.debug(f'Importing image bit map for image at "{image_file_path}"')
             bitmap = read_image_bitmap(image_file_path)
             return field_id, bitmap, capture_date, satellite, mysterious_date
         else:
@@ -76,11 +78,14 @@ def import_images_folder(folder_path: str):
     try:
         directory_files = (os.path.join(folder_path, file)
                            for file in os.listdir(folder_path))
-        directory_files = filter(os.path.isfile, directory_files)
+        directory_files = list(filter(os.path.isfile, directory_files))
         imported_images_data = []
-        for file in directory_files:
+        for i, file in enumerate(directory_files):
             image_data = import_locally_stored_image(file)
             if image_data:
                 imported_images_data.append(image_data)
+            logger.info(f'Processed {i + 1} files out of {len(directory_files)} | '
+                        f'Completed {((i + 1) / len(directory_files)) * 100} %')
+        return imported_images_data
     except Exception as error:
         raise IPLError(f'Unable to import folder at "{folder_path}", reason : "{error}"')
