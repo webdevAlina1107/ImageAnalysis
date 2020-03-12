@@ -14,6 +14,10 @@ with open(readme_location, "rb") as f:
 with open(requirements_location, 'r') as requirements_file:
     requirements = requirements_file.read().split('\n')
 
+extras = {
+    'excel': ['xlsxwriter']
+}
+
 setup(
     name="cmdline-image-processor",
     packages=find_packages(),
@@ -30,6 +34,7 @@ setup(
     download_url='https://github.com/webdevAlina1107/ImageAnalysis/archive/0.0.1.tar.gz',
     keywords=['IMAGE PROCESSING', 'CMD', 'UTILITY', 'RASTER'],
     install_requires=requirements,
+    extras_require=extras,
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: MIT License',

@@ -1,24 +1,24 @@
-from enum import Enum
 import datetime
 import os
-
-import rasterio as rast
-import numpy as np
 import re
+from enum import Enum
 
-from ipl.image_analysis import IMAGE_DATA_TYPE
+import numpy as np
+import rasterio as rast
+
 from ipl._logging import logger
 from ipl.errors import IPLError
+from ipl.image_analysis import IMAGE_DATA_TYPE
 
 IMAGE_FILE_NAME_PATTERN = re.compile(r"^(.+)_(.+)_.+_(.+)_(.+)$")
 
 
 class SupportedDrivers(Enum):
-    PNG = '.png'
-    GTiff = '.tiff'
-    GIF = '.gif'
-    BMP = '.bmp'
-    JPEG = '.jpg'
+    PNG = 'png'
+    GTiff = 'tiff'
+    GIF = 'gif'
+    BMP = 'bmp'
+    JPEG = 'jpg'
 
     @classmethod
     def drivers_list(cls):

@@ -1,15 +1,15 @@
 import datetime
-from typing import Optional, List
+import functools
+import io
+import os
+import sqlite3
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
-import functools
-import sqlite3
-import os
-import io
 
-from ipl.errors import IPLError
 from ipl._logging import logger
+from ipl.errors import IPLError
 
 FILE_LOCATION = os.path.abspath(os.path.dirname(__file__))
 DATABASE_LOCATION = os.path.join(FILE_LOCATION, 'datasource', 'images.db')
@@ -154,8 +154,8 @@ class ImageDatabase:
         statement = _get_sql_statement('select_images')
         query_parameters = (field_id, date_start, date_end,)
         records = pd.read_sql_query(statement, self.connection, params=query_parameters)
-        if not filtered_columns:
-            records = records.filter(filtered_columns)
+        if filtered_columns:
+            records = records.filter(items=filtered_columns)
         return records
 
     @_interacts_with_database
