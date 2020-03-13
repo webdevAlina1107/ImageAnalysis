@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from tabulate import tabulate
+from click import confirm
 
 from ipl import importexport as importexport
 from ipl import image_analysis as image_anal
@@ -252,15 +253,16 @@ def visualize_statistics(id_: List[str],
             image_id = image['image_id']
             if image_id not in cached_images_ids:
                 bitmap: np.ndarray = image['image_data']
-                bitmap = image_anal.fill_cloud_bits_with_value(bitmap)
-                cloud_rate = image_anal.calculate_clouds_percentile(bitmap)
-                if cloud_rate < max_cloudiness:
+                temp_bitmap = image_anal.fill_cloud_bits_with_value(bitmap)
+                cloud_rate = image_anal.calculate_clouds_percentile(temp_bitmap)
+                del temp_bitmap
+                if cloud_rate <= max_cloudiness:
                     capture_date = image['capture_date']
                     mean = np.nanmean(bitmap)
                     lower_ci, upper_ci = image_anal.calculate_confidence_interval(bitmap)
                     series = pd.Series([image_id, capture_date, mean, lower_ci, upper_ci],
                                        index=cached_statistics.columns)
-                    cached_statistics.append(series, ignore_index=True)
+                    cached_statistics = cached_statistics.append(series, ignore_index=True)
 
         if cached_statistics.shape and cached_statistics.shape[0]:
             visualization.plot_statistics_for_a_period(time_stamps=cached_statistics['capture_date'],
@@ -273,7 +275,7 @@ def visualize_statistics(id_: List[str],
     if have_plotted_anything:
         visualization.show_plots()
     else:
-        logger.debug('Unable to start visualization, no data found')
+        print('Unable to start visualization, no data found')
 
 
 def import_images(import_location: List[str],
@@ -318,11 +320,20 @@ def export_images(export_location: str,
     selected_extension = importexport.SupportedDrivers[driver].value
 
     for index, row in dataframe.iterrows():
-        capture_date = row['capture_date']
+        capture_date = row['capture_date'].strftime("%d%m%Y")
         satellite = row['capture_satellite']
-        mysterious_date = row['mysterious_date']
+        mysterious_date = row['mysterious_date'].strftime("P%Y%m%d")
         field_id = row['field_id']
         bitmap = row['image_data']
-        file_name = f'{capture_date}_{field_id}_{mysterious_date}_{satellite}.{selected_extension}'
+        file_name = f'{capture_date}_{field_id}_NDVI_{mysterious_date}_{satellite}.{selected_extension}'
         file_path = os.path.join(export_location, file_name)
         importexport.write_image_bitmap(file_path, bitmap, driver)
+
+
+def reset_database(confirmed: bool,
+                   **kwargs):
+    if not confirmed:
+        confirmed = confirm('Do you really want to erase all stored data ?')
+    if confirmed:
+        database = image_db.ImageDatabaseInstance()
+        database.erase_all()

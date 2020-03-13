@@ -37,9 +37,11 @@ def write_image_bitmap(image_file_path: str,
     logger.debug(f'Writing image data to "{image_file_path}"')
     width, height = array.shape
     sharing_mode_on = selected_driver == 'GTiff'
+    if array.dtype is not np.uint8:
+        array = array.astype(np.uint8)
     try:
         with rast.open(image_file_path, mode='w', driver=selected_driver,
-                       width=width, height=height, count=1, dtype=IMAGE_DATA_TYPE,
+                       width=width, height=height, count=1, dtype=array.dtype,
                        sharing=sharing_mode_on) as image_file:
             image_file.write(array, 1)
     except rast.RasterioIOError as error:

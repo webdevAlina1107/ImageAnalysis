@@ -195,6 +195,15 @@ class ImageDatabase:
             return dataframe.filter(filtered_columns)
         return dataframe
 
+    # Cascading does not works :(
+    @_interacts_with_database
+    def erase_all(self):
+        erase_order = ['statistic_info', 'image', 'field']
+        with self.connection:
+            for table in erase_order:
+                statement = f'DELETE FROM {table}'
+                self.execute_statement(statement)
+
 
 class ImageDatabaseInstance:
     def __new__(cls):

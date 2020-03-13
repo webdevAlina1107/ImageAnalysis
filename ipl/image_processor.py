@@ -26,15 +26,19 @@ def _parse_file_path(path: str):
     return path
 
 
-def _parse_float_in_range(string: str):
-    try:
-        value = float(string)
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"{string} not a floating-point literal")
-    if 0.0 <= value <= 1.0:
-        raise argparse.ArgumentTypeError(f"{value} not in range [0.0, 1.0]")
+def float_parser_in_range(range_start: float,
+                          range_end: float):
+    def _parse_float_in_range(string: str):
+        try:
+            value = float(string)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{string} not a floating-point literal")
+        if not range_start <= value <= range_end:
+            raise argparse.ArgumentTypeError(f"{value} not in range [{range_start}, {range_end}]")
 
-    return value
+        return value
+
+    return _parse_float_in_range
 
 
 def cmdline_arguments():
@@ -112,6 +116,14 @@ def cmdline_arguments():
                                 help='End date of a timeline', metavar='DD/MM/YYYY')
     db_view_parser.set_defaults(function=workflow.database_view)
 
+    # RESET PARSER
+
+    reset_parser = subparsers.add_parser('reset', help='Resets IPL images database')
+
+    reset_parser.add_argument('-y', '--yes', action='store_true', dest='confirmed',
+                              help='Disables prompt before reset')
+    reset_parser.set_defaults(function=workflow.reset_database)
+
     # VISUALIZATION SUBPARSERS
 
     visualization_parser = subparsers.add_parser('visualize', help='Visualize statistical data')
@@ -154,8 +166,9 @@ def cmdline_arguments():
                                    help='Start of analysed timeline', metavar='DD/MM/YYYY')
     statistics_parser.add_argument('--end_date', dest='end', default=datetime.date.max, type=_parse_date,
                                    help='End of analysed timeline', metavar='DD/MM/YYYY')
-    statistics_parser.add_argument('--max_cloudiness', dest='max_cloudiness', default=0.5, type=_parse_float_in_range,
-                                   metavar='[0.0, 1.0]', help='Filtering cloudiness percent')
+    statistics_parser.add_argument('--max_cloudiness', dest='max_cloudiness', default=0.5,
+                                   type=float_parser_in_range(0.0, 1.0), metavar='[0.0, 1.0]',
+                                   help='Filtering cloudiness percent')
     statistics_parser.set_defaults(function=workflow.visualize_statistics)
 
     arguments = parser.parse_args()
