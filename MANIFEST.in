@@ -1,5 +1,4 @@
 include LICENCE.txt
 include README.rst
 include requirements.txt
-include ipl/database/datasource/*
-include ipl/database/scripts/*
+recursive-include ipl/database *
