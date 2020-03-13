@@ -1,0 +1,1 @@
+select EXISTS(select 1 from field where field_id=? LIMIT 1)

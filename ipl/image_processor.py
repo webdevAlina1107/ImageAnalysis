@@ -1,10 +1,11 @@
 import argparse
 import datetime
 import os
-from pathlib import Path
+import traceback
 from pprint import pformat
-from typing import List, Optional
 
+import ipl.importexport as importexport
+import ipl.workflows as workflow
 from ipl._logging import configure_logger, logger
 from ipl.errors import IPLError
 
@@ -25,67 +26,19 @@ def _parse_file_path(path: str):
     return path
 
 
-def _parse_float_in_range(string: str):
-    try:
-        value = float(string)
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"{string} not a floating-point literal")
-    if 0.0 <= value <= 1.0:
-        raise argparse.ArgumentTypeError(f"{value} not in range [0.0, 1.0]")
+def float_parser_in_range(range_start: float,
+                          range_end: float):
+    def _parse_float_in_range(string: str):
+        try:
+            value = float(string)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{string} not a floating-point literal")
+        if not range_start <= value <= range_end:
+            raise argparse.ArgumentTypeError(f"{value} not in range [{range_start}, {range_end}]")
 
-    return value
+        return value
 
-
-def database_view(id_: List[int],
-                  all_: bool,
-                  head: Optional[int],
-                  start: datetime.date,
-                  end: datetime.date,
-                  **kwargs):
-    print('DONE')
-
-
-def visualize_clouds(id_: int,
-                     start: datetime.date,
-                     end: datetime.date,
-                     **kwargs):
-    print('DONE')
-
-
-def visualize_occurrences(file: Optional[Path],
-                          id_: Optional[int],
-                          **kwargs):
-    print('DONE')
-
-
-def visualize_statistics(id_: List[int],
-                         start: datetime.date,
-                         end: datetime.date,
-                         cloudiness: float,
-                         **kwargs):
-    print('DONE')
-
-
-def import_images(import_location: Path,
-                  cache: bool,
-                  **kwargs):
-    print('DONE')
-
-
-def export_images(export_location: Path,
-                  start: datetime.date,
-                  end: datetime.date,
-                  all_: bool,
-                  id_: List[int],
-                  **kwargs):
-    print('DONE')
-
-
-def process_images(file: Path,
-                   id_: List[int],
-                   cache: bool,
-                   **kwargs):
-    print('DONE')
+    return _parse_float_in_range
 
 
 def cmdline_arguments():
@@ -106,41 +59,52 @@ def cmdline_arguments():
                                     ' can be specified multiple times')
     import_parser.add_argument('-cc', '--calculations_cache', dest='cache', action='store_true',
                                help='Enables calculations caching while importing image')
-    import_parser.set_defaults(function=import_images)
+    import_parser.set_defaults(function=workflow.import_images)
 
     # EXPORT SUBPARSER
+    drivers_list = importexport.SupportedDrivers.drivers_list()
 
     export_parser = subparsers.add_parser('export', help='Exports images out of database')
     export_parser.add_argument('export_location', type=str, metavar='PATH/TO/EXPORT/FOLDER',
                                help='Location of folder to export selected data')
+    export_parser.add_argument('--force', dest='force', action='store_true',
+                               help='Create directory if not exists')
+    export_parser.add_argument('--driver', type=str, choices=drivers_list,
+                               dest='driver', default='GTiff',
+                               help='Driver for image exporting')
     export_parser.add_argument('--start_date', dest='start', type=_parse_date, default=datetime.date.min,
                                help='Start date of a timeline', metavar='DD/MM/YYYY')
     export_parser.add_argument('--end_date', dest='end', type=_parse_date, default=datetime.date.max,
                                help='End date of a timeline', metavar='DD/MM/YYYY')
     selection_type = export_parser.add_mutually_exclusive_group(required=True)
-    selection_type.add_argument('--id', dest='id_', default=None, type=int, nargs='+',
+    selection_type.add_argument('--id', dest='id_', default=None, nargs='+',
                                 metavar='FIELD_ID', help='ID of a field in a database')
     selection_type.add_argument('--all', action='store_true', dest='all_',
                                 help='Exports without filtering by id')
-    export_parser.set_defaults(function=export_images)
+    export_parser.set_defaults(function=workflow.export_images)
 
     # PROCESSING SUBPARSER
 
     processing_parser = subparsers.add_parser('process', help='Process an image in a database or file')
     processing_parser.add_argument('--file', dest='file', default=None, type=_parse_file_path,
                                    help='Path to image file', metavar='PATH/TO/IMAGE')
-    processing_parser.add_argument('--id', dest='id_', default=None, type=int, nargs='+',
-                                   metavar='IMAGE_ID', help='IDs of processed images')
+    db_images_selection = processing_parser.add_mutually_exclusive_group()
+    db_images_selection.add_argument('--id', dest='id_', default=None, type=int, nargs='+',
+                                     metavar='IMAGE_ID', help='IDs of processed images')
+    db_images_selection.add_argument('--all', dest='all_', action='store_true',
+                                     help='Processes all images in database')
     processing_parser.add_argument('-cc', '--calculations_cache', dest='cache', action='store_true',
                                    help='Enables calculations caching')
-    processing_parser.set_defaults(function=process_images)
+    processing_parser.add_argument('--export_to', dest='export_location', default=None,
+                                   type=_parse_file_path, help='Path to excel file where results would be stored')
+    processing_parser.set_defaults(function=workflow.process_images)
 
     # DB VIEW SUBPARSER
 
     db_view_parser = subparsers.add_parser('view', help='View DB records')
 
     image_selection_group_ = db_view_parser.add_mutually_exclusive_group(required=True)
-    image_selection_group_.add_argument('--id', nargs='+', type=int, dest='id_',
+    image_selection_group_.add_argument('--id', nargs='+', dest='id_',
                                         metavar='FIELD_ID', help="IDs of viewed fields' images")
     image_selection_group_.add_argument('--all', action='store_true', dest='all_',
                                         help='Selects all records')
@@ -150,7 +114,15 @@ def cmdline_arguments():
                                 help='Start date of a timeline', metavar='DD/MM/YYYY')
     db_view_parser.add_argument('--end_date', dest='end', type=_parse_date, default=datetime.date.max,
                                 help='End date of a timeline', metavar='DD/MM/YYYY')
-    db_view_parser.set_defaults(function=database_view)
+    db_view_parser.set_defaults(function=workflow.database_view)
+
+    # RESET PARSER
+
+    reset_parser = subparsers.add_parser('reset', help='Resets IPL images database')
+
+    reset_parser.add_argument('-y', '--yes', action='store_true', dest='confirmed',
+                              help='Disables prompt before reset')
+    reset_parser.set_defaults(function=workflow.reset_database)
 
     # VISUALIZATION SUBPARSERS
 
@@ -163,13 +135,13 @@ def cmdline_arguments():
     clouds_parser = visualization_subparsers.add_parser('clouds',
                                                         help='Histogram to visualize cloudiness '
                                                              'of images on a timeline')
-    clouds_parser.add_argument('--id', required=True, dest='id_', type=int,
+    clouds_parser.add_argument('--id', required=True, dest='id_',
                                metavar='FIELD_ID', help='ID of a processed field')
     clouds_parser.add_argument('--start_date', dest='start', default=datetime.date.min, type=_parse_date,
                                help='Start of analysed timeline', metavar='DD/MM/YYYY')
     clouds_parser.add_argument('--end_date', dest='end', default=datetime.date.max, type=_parse_date,
                                help='End of analysed timeline', metavar='DD/MM/YYYY')
-    clouds_parser.set_defaults(function=visualize_clouds)
+    clouds_parser.set_defaults(function=workflow.visualize_clouds)
 
     # VALUES OCCURRENCES VISUALIZATION SUBPARSER
 
@@ -181,27 +153,29 @@ def cmdline_arguments():
                                        help='Path to image file', metavar='PATH/TO/IMAGE')
     image_selection_group.add_argument('--id', dest='id_', default=None, type=int,
                                        metavar='IMAGE_ID', help='ID of processed image')
-    occurrences_parser.set_defaults(function=visualize_occurrences)
+    occurrences_parser.set_defaults(function=workflow.visualize_occurrences)
 
     # STATISTICS VISUALIZATION SUBPARSER
 
     statistics_parser = visualization_subparsers.add_parser('statistics',
                                                             help='Diagram to visualize multiple'
                                                                  ' datasets statistical data')
-    statistics_parser.add_argument('--id', nargs='+', required=True, type=int, dest='id_',
+    statistics_parser.add_argument('--id', nargs='+', required=True, dest='id_',
                                    metavar='FIELD_ID', help='IDs of visualized fields')
     statistics_parser.add_argument('--start_date', dest='start', default=datetime.date.min, type=_parse_date,
                                    help='Start of analysed timeline', metavar='DD/MM/YYYY')
     statistics_parser.add_argument('--end_date', dest='end', default=datetime.date.max, type=_parse_date,
                                    help='End of analysed timeline', metavar='DD/MM/YYYY')
-    statistics_parser.add_argument('--max_cloudiness', dest='cloudiness', default=0.5, type=_parse_float_in_range,
-                                   metavar='[0.0, 1.0]', help='Filtering cloudiness percent')
-    statistics_parser.set_defaults(function=visualize_statistics)
+    statistics_parser.add_argument('--max_cloudiness', dest='max_cloudiness', default=0.5,
+                                   type=float_parser_in_range(0.0, 1.0), metavar='[0.0, 1.0]',
+                                   help='Filtering cloudiness percent')
+    statistics_parser.set_defaults(function=workflow.visualize_statistics)
 
     arguments = parser.parse_args()
 
     if arguments.command == 'process':
-        if arguments.file and (arguments.id or arguments.cache):
+        if arguments.file and (arguments.id_ or arguments.all_) or (not arguments.file and not arguments.id_
+                                                                    and not arguments.all_):
             parser.error('Unable to parse mutually exclusive group ["file"] and ["id", "calculations_cache"]')
 
     return arguments
@@ -215,10 +189,13 @@ def main():
         function = arguments.function
         logger.debug(f'Starting target function with arguments : \n{pformat(vars(arguments), indent=4)}')
         function(**vars(arguments))
+        logger.debug('Action succeeded !')
     except IPLError as error:
-        logger.critical(f'INTERNAL ERROR : "{error}"')
+        logger.critical(f'Database error @ {error}')
+        logger.debug(traceback.format_exc())
     except Exception as error:
-        logger.critical(f'SOMETHING WENT WRONG : "{error}"')
+        logger.critical(f'Something went wrong @ {error}')
+        logger.debug(traceback.format_exc())
 
 
 if __name__ == '__main__':

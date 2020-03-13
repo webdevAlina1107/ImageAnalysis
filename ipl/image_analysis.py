@@ -1,13 +1,12 @@
 from pathlib import Path
 
 import numpy as np
-import rasterio as rast
 import scipy.stats as stats
 
 from ipl._logging import logger
 
-IMAGE_DATA_TYPE = np.uint8
-SPECIAL_VALUE: IMAGE_DATA_TYPE = IMAGE_DATA_TYPE(255)
+IMAGE_DATA_TYPE = np.double
+SPECIAL_VALUE: IMAGE_DATA_TYPE = np.nan
 
 
 def fill_cloud_bits_with_value(array: np.ndarray,
@@ -20,14 +19,6 @@ def fill_cloud_bits_with_value(array: np.ndarray,
     return masked_array.filled(clouds_special_value)
 
 
-def read_image_bitmap(image_file_path: Path,
-                      selected_band: int = 1
-                      ) -> np.ndarray:
-    logger.debug(f'Reading image at {image_file_path}, band = {selected_band}')
-    with rast.open(image_file_path, 'r', dtype=IMAGE_DATA_TYPE) as raster:
-        return raster.read(selected_band)
-
-
 def construct_values_occurrences_map(array: np.ndarray):
     unique_values, counts = np.unique(array, return_counts=True)
     logger.debug('Constructing value occurrences map in matrix')
@@ -38,13 +29,28 @@ def calculate_clouds_percentile(array: np.ndarray,
                                 clouds_special_value: IMAGE_DATA_TYPE = SPECIAL_VALUE):
     """Note that this function should be only used after processing with fill_cloud_bits_with_value"""
     logger.debug('Calculating clouds percentile')
-    return np.count_nonzero(array == clouds_special_value) / array.size
+    if clouds_special_value is not np.nan:
+        boolean_mask = array == clouds_special_value
+    else:
+        boolean_mask = np.isnan(array)
+
+    return np.count_nonzero(boolean_mask) / array.size
 
 
 def calculate_confidence_interval(array: np.ndarray,
                                   confidence_percent: float = 0.95):
     logger.debug(f'Calculating confidence interval with confidence percent {confidence_percent}')
-    return stats.t.interval(confidence_percent,
-                            len(array) - 1,
-                            loc=array.mean(),
-                            scale=stats.sem(array))
+    array_mean = np.nanmean(array)
+    sd = np.sqrt(np.nansum(np.power(array - array_mean, 2)) / array.size - 1)
+    alpha = 1 - confidence_percent
+    interval = stats.t.ppf(1.0 - (alpha / 2.0), array.size - 1) * (sd / np.sqrt(array.size))
+    return array_mean - interval, array_mean + interval
+
+
+def calculate_all_statistics(array: np.ndarray):
+    ci_lower, ci_upper = calculate_confidence_interval(array)
+    mean = np.mean(array)
+    std = np.std(array)
+    array = fill_cloud_bits_with_value(array)
+    cloud_rate = calculate_clouds_percentile(array)
+    return cloud_rate, mean, std, ci_lower, ci_upper

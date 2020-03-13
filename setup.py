@@ -14,13 +14,17 @@ with open(readme_location, "rb") as f:
 with open(requirements_location, 'r') as requirements_file:
     requirements = requirements_file.read().split('\n')
 
+extras = {
+    'excel': ['xlsxwriter']
+}
+
 setup(
     name="cmdline-image-processor",
     packages=find_packages(),
     entry_points={
         "console_scripts": ['ipl = ipl.image_processor:main']
     },
-    version="0.0.0",
+    version="0.0.1",
     license='MIT',
     description="Python command line application which analyses images",
     long_description=long_description,
@@ -30,6 +34,7 @@ setup(
     download_url='https://github.com/webdevAlina1107/ImageAnalysis/archive/0.0.1.tar.gz',
     keywords=['IMAGE PROCESSING', 'CMD', 'UTILITY', 'RASTER'],
     install_requires=requirements,
+    extras_require=extras,
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: MIT License',
