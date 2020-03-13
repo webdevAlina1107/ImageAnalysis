@@ -10,57 +10,12 @@ import pandas as pd
 
 from tabulate import tabulate
 
-from ipl import importexport as importexport, image_analysis as image_anal, visualization as visualization
+from ipl import importexport as importexport
+from ipl import image_analysis as image_anal
+from ipl import visualization as visualization
 from ipl._logging import logger
 from ipl.database import image_db as image_db
 from ipl.errors import IPLError
-
-
-def require_extension_modules(dependencies_list):
-    import importlib.util as import_utils
-    for package in dependencies_list:
-        spam_spec = import_utils.find_spec(package)
-        found = spam_spec is not None
-        if not found:
-            warn(f'Unable to found {package} in installed dependencies, some operations may not run successfully',
-                 category=RuntimeWarning)
-
-
-def process_images(file: Optional[str],
-                   id_: Optional[List[int]],
-                   export_location: str,
-                   all_: bool,
-                   cache: bool,
-                   **kwargs):
-    if file:
-        processed_images = [importexport.read_image_bitmap(file)]
-    else:
-        database = image_db.ImageDatabaseInstance()
-        if all_:
-            id_ = database.select_images_ids()
-        required_fields = ['image_data']
-        images_data = [database.select_image(image_id, required_fields) for image_id in id_]
-        processed_images = [data['image_data'][0] for data in images_data]
-
-    id_ = np.array(id_, dtype=np.int64)
-    dataframe = _calculate_images_statistics(processed_images, id_)
-    labels = [label.replace('_', ' ').capitalize() for label in dataframe.columns.values]
-    print(tabulate(dataframe, headers=labels, tablefmt='psql'))
-    if cache and id_:
-        database = image_db.ImageDatabaseInstance()
-        for image_id, (index, row) in zip(id_, dataframe.iterrows()):
-            if not database.check_if_has_cached_statistics(image_id):
-                cloud_rate = row['cloud_rate']
-                ndvi_average = row['ndvi_average']
-                std = row['standard_deviation']
-                lower_ci = row['lower_ci']
-                upper_ci = row['upper_ci']
-                database.insert_image_statistics(image_id, cloud_rate, ndvi_average,
-                                                 std, lower_ci, upper_ci)
-    if export_location:
-        require_extension_modules(['xlsxwriter'])
-        dataframe.to_excel(export_location, engine='xlsxwriter',
-                           na_rep='N/A', sheet_name='Statistics')
 
 
 def _add_months(initial_date: datetime.date,
@@ -82,11 +37,11 @@ def _collect_cloudiness_data(cloudiness_data: Iterable[float],
                 epsilon < cloudiness < 1 - epsilon,
                 cloudiness > 1 - epsilon)
 
-    non_gen, partially_gen, fully_gen = tee(generate_estimation_tuple(cloudiness)
-                                            for cloudiness in cloudiness_data)
+    generate_tuples = (generate_estimation_tuple(cloudiness) for cloudiness in cloudiness_data)
+    non_gen, partially_gen, fully_gen = tee(generate_tuples, 3)
     return (sum(1 for non, partially, fully in non_gen if non),
-            sum(1 for non, partially, fully in non_gen if partially),
-            sum(1 for non, partially, fully in non_gen if fully))
+            sum(1 for non, partially, fully in partially_gen if partially),
+            sum(1 for non, partially, fully in fully_gen if fully))
 
 
 def _calculate_images_statistics(images_array: List[np.ndarray],
@@ -136,12 +91,59 @@ def _collect_images(field_ids: List[int],
         return None
 
 
+def require_extension_modules(dependencies_list):
+    import importlib.util as import_utils
+    for package in dependencies_list:
+        spam_spec = import_utils.find_spec(package)
+        found = spam_spec is not None
+        if not found:
+            warn(f'Unable to found {package} in installed dependencies, some operations may not run successfully',
+                 category=RuntimeWarning)
+
+
+def process_images(file: Optional[str],
+                   id_: Optional[List[int]],
+                   export_location: str,
+                   all_: bool,
+                   cache: bool,
+                   **kwargs):
+    if file:
+        processed_images = [importexport.read_image_bitmap(file)]
+    else:
+        database = image_db.ImageDatabaseInstance()
+        if all_:
+            id_ = database.select_images_ids()
+        required_fields = ['image_data']
+        images_data = [database.select_image(image_id, required_fields) for image_id in id_]
+        processed_images = [data['image_data'][0] for data in images_data]
+
+    id_ = np.array(id_, dtype=image_anal.IMAGE_DATA_TYPE)
+    dataframe = _calculate_images_statistics(processed_images, id_)
+    labels = [label.replace('_', ' ').capitalize() for label in dataframe.columns.values]
+    print(tabulate(dataframe, headers=labels, tablefmt='psql'))
+    if cache and id_:
+        database = image_db.ImageDatabaseInstance()
+        for image_id, (index, row) in zip(id_, dataframe.iterrows()):
+            if not database.check_if_has_cached_statistics(image_id):
+                cloud_rate = row['cloud_rate']
+                ndvi_average = row['ndvi_average']
+                std = row['standard_deviation']
+                lower_ci = row['lower_ci']
+                upper_ci = row['upper_ci']
+                database.insert_image_statistics(image_id, cloud_rate, ndvi_average,
+                                                 std, lower_ci, upper_ci)
+    if export_location:
+        require_extension_modules(['xlsxwriter'])
+        dataframe.to_excel(export_location, engine='xlsxwriter',
+                           na_rep='N/A', sheet_name='Statistics')
+
+
 def database_view(id_: Optional[List[int]],
                   head: Optional[int],
                   start: datetime.date,
                   end: datetime.date,
                   **kwargs):
-    required_columns = ['image_id', 'field_id', 'capture_data', 'mysterious_date', 'capture_satellite']
+    required_columns = ['image_id', 'field_id', 'capture_date', 'mysterious_date', 'capture_satellite']
     database = image_db.ImageDatabaseInstance()
     if not id_:
         id_ = database.select_fields_ids()
@@ -157,7 +159,7 @@ def database_view(id_: Optional[List[int]],
         print("No suitable records found !")
 
 
-def visualize_clouds(id_: int,
+def visualize_clouds(id_: str,
                      start: datetime.date,
                      end: datetime.date,
                      **kwargs):
@@ -199,7 +201,7 @@ def visualize_clouds(id_: int,
                 statistics_arrays[index_].append(statistics_item)
 
         for index, date in enumerate(capture_dates):
-            if date > dates_list[-1]:
+            if date > minimal_goal_date:
                 index_start, index_end = index_end, index
                 _update_statistics(date)
                 minimal_goal_date = _add_months(date, 1)
@@ -208,7 +210,7 @@ def visualize_clouds(id_: int,
         visualization.plot_clouds_impact_for_a_period(dates_list, *statistics_arrays)
         visualization.show_plots()
     else:
-        logger.debug('Unable to start visualization, no data found')
+        print('Unable to start visualization, no data found')
 
 
 def visualize_occurrences(file: Optional[str],
@@ -218,14 +220,14 @@ def visualize_occurrences(file: Optional[str],
         bitmap = importexport.read_image_bitmap(file)
     else:
         database = image_db.ImageDatabaseInstance()
-        bitmap = database.select_image(id_)['image_data']
+        bitmap = database.select_image(id_)['image_data'][0]
 
     unique_value_occurs = image_anal.construct_values_occurrences_map(bitmap)
     visualization.plot_values_frequencies(unique_value_occurs)
     visualization.show_plots()
 
 
-def visualize_statistics(id_: List[int],
+def visualize_statistics(id_: List[str],
                          start: datetime.date,
                          end: datetime.date,
                          max_cloudiness: float,
@@ -316,7 +318,7 @@ def export_images(export_location: str,
     selected_extension = importexport.SupportedDrivers[driver].value
 
     for index, row in dataframe.iterrows():
-        capture_date = row['capture_data']
+        capture_date = row['capture_date']
         satellite = row['capture_satellite']
         mysterious_date = row['mysterious_date']
         field_id = row['field_id']

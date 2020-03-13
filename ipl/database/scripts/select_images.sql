@@ -1,1 +1,1 @@
-select * from image where field_id = ? and capture_data between ? and ?
+select * from image where field_id = ? and capture_date between ? and ?

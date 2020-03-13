@@ -84,7 +84,7 @@ class ImageDatabase:
 
     @_interacts_with_database
     def insert_image(self,
-                     field_id: int,
+                     field_id: str,
                      image_bitmap: np.ndarray,
                      capture_date: datetime.date,
                      capture_satellite: str,
@@ -99,7 +99,7 @@ class ImageDatabase:
 
     @_interacts_with_database
     def insert_field(self,
-                     field_id: int):
+                     field_id: str):
         statement = _get_sql_statement('insert_field')
         with self.connection:
             self.execute_statement(statement, field_id)
@@ -126,7 +126,7 @@ class ImageDatabase:
 
     @_interacts_with_database
     def check_if_field_exists(self,
-                              field_id: int):
+                              field_id: str):
         statement = _get_sql_statement('check_if_field_exists')
         self.execute_statement(statement, field_id)
         return self.cursor.fetchone()[0]
@@ -183,7 +183,7 @@ class ImageDatabase:
 
     @_interacts_with_database
     def select_field_statistics(self,
-                                field_id: int,
+                                field_id: str,
                                 filtered_columns: Optional[List[str]] = None,
                                 date_start: datetime.date = datetime.date.min,
                                 date_end: datetime.date = datetime.date.max,

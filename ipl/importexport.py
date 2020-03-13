@@ -27,8 +27,8 @@ class SupportedDrivers(Enum):
 
 def read_image_bitmap(image_file_path: str) -> np.ndarray:
     logger.debug(f'Reading image at {image_file_path}, band = 1')
-    with rast.open(image_file_path, 'r', dtype=IMAGE_DATA_TYPE) as raster:
-        return raster.read(1)
+    with rast.open(image_file_path) as raster:
+        return raster.read(1).astype(IMAGE_DATA_TYPE)
 
 
 def write_image_bitmap(image_file_path: str,

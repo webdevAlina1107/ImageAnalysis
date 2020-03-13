@@ -5,8 +5,8 @@ import scipy.stats as stats
 
 from ipl._logging import logger
 
-IMAGE_DATA_TYPE = np.uint8
-SPECIAL_VALUE: IMAGE_DATA_TYPE = IMAGE_DATA_TYPE(255)
+IMAGE_DATA_TYPE = np.double
+SPECIAL_VALUE: IMAGE_DATA_TYPE = np.nan
 
 
 def fill_cloud_bits_with_value(array: np.ndarray,
@@ -29,7 +29,12 @@ def calculate_clouds_percentile(array: np.ndarray,
                                 clouds_special_value: IMAGE_DATA_TYPE = SPECIAL_VALUE):
     """Note that this function should be only used after processing with fill_cloud_bits_with_value"""
     logger.debug('Calculating clouds percentile')
-    return np.count_nonzero(array == clouds_special_value) / array.size
+    if clouds_special_value is not np.nan:
+        boolean_mask = array == clouds_special_value
+    else:
+        boolean_mask = np.isnan(array)
+
+    return np.count_nonzero(boolean_mask) / array.size
 
 
 def calculate_confidence_interval(array: np.ndarray,

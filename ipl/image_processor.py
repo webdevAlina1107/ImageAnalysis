@@ -73,7 +73,7 @@ def cmdline_arguments():
     export_parser.add_argument('--end_date', dest='end', type=_parse_date, default=datetime.date.max,
                                help='End date of a timeline', metavar='DD/MM/YYYY')
     selection_type = export_parser.add_mutually_exclusive_group(required=True)
-    selection_type.add_argument('--id', dest='id_', default=None, type=int, nargs='+',
+    selection_type.add_argument('--id', dest='id_', default=None, nargs='+',
                                 metavar='FIELD_ID', help='ID of a field in a database')
     selection_type.add_argument('--all', action='store_true', dest='all_',
                                 help='Exports without filtering by id')
@@ -100,7 +100,7 @@ def cmdline_arguments():
     db_view_parser = subparsers.add_parser('view', help='View DB records')
 
     image_selection_group_ = db_view_parser.add_mutually_exclusive_group(required=True)
-    image_selection_group_.add_argument('--id', nargs='+', type=int, dest='id_',
+    image_selection_group_.add_argument('--id', nargs='+', dest='id_',
                                         metavar='FIELD_ID', help="IDs of viewed fields' images")
     image_selection_group_.add_argument('--all', action='store_true', dest='all_',
                                         help='Selects all records')
@@ -123,7 +123,7 @@ def cmdline_arguments():
     clouds_parser = visualization_subparsers.add_parser('clouds',
                                                         help='Histogram to visualize cloudiness '
                                                              'of images on a timeline')
-    clouds_parser.add_argument('--id', required=True, dest='id_', type=int,
+    clouds_parser.add_argument('--id', required=True, dest='id_',
                                metavar='FIELD_ID', help='ID of a processed field')
     clouds_parser.add_argument('--start_date', dest='start', default=datetime.date.min, type=_parse_date,
                                help='Start of analysed timeline', metavar='DD/MM/YYYY')
@@ -148,7 +148,7 @@ def cmdline_arguments():
     statistics_parser = visualization_subparsers.add_parser('statistics',
                                                             help='Diagram to visualize multiple'
                                                                  ' datasets statistical data')
-    statistics_parser.add_argument('--id', nargs='+', required=True, type=int, dest='id_',
+    statistics_parser.add_argument('--id', nargs='+', required=True, dest='id_',
                                    metavar='FIELD_ID', help='IDs of visualized fields')
     statistics_parser.add_argument('--start_date', dest='start', default=datetime.date.min, type=_parse_date,
                                    help='Start of analysed timeline', metavar='DD/MM/YYYY')

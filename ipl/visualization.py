@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict, Optional, Sequence
+from itertools import chain
 
 import matplotlib.dates as dates
 import matplotlib.pyplot as plot
@@ -105,6 +106,8 @@ def plot_clouds_impact_for_a_period(time_stamps: Sequence[datetime],
     and plots bars histogram with this data"""
     axes, figure = plot.gca(), plot.gcf()
     logger.debug('Configuring histogram axes')
+    max_y = max(chain(non_clouded_counts, partially_clouded_counts, fully_clouded_counts))
+    axes.set_yticks(list(range(max_y + 1)))
     _setup_axes(axes,
                 title='Clouded images statistics',
                 x_label='Time stamps',
