@@ -31,7 +31,7 @@ setup(
     author="Fugol Alina, Taran Anatoly",
     author_email="webdevAlina@gmail.com",
     url="https://github.com/webdevAlina1107/ImageAnalysis",
-    download_url='https://github.com/webdevAlina1107/ImageAnalysis/archive/0.0.1.tar.gz',
+    download_url='https://github.com/webdevAlina1107/ImageAnalysis/archive/0.0.2.tar.gz',
     keywords=['IMAGE PROCESSING', 'CMD', 'UTILITY', 'RASTER'],
     install_requires=requirements,
     extras_require=extras,
