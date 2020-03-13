@@ -18,9 +18,6 @@ Utility features
 Import
 ------
 
-Note that to import file it follow naming convention to provide meta
-information about file
-
 -  Import picture
 -  Import set of pictures
 -  Import with caching statistical data
