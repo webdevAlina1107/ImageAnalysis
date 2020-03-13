@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Any, Dict, Optional, Sequence
 from itertools import chain
+from typing import Any, Dict, Optional, Sequence
 
 import matplotlib.dates as dates
 import matplotlib.pyplot as plot

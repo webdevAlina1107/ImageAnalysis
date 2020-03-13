@@ -1,20 +1,18 @@
 import calendar
 import datetime
 import os
-from itertools import tee, islice
-from typing import Optional, List, Iterable
+from itertools import islice, tee
+from typing import Iterable, List, Optional
 from warnings import warn
 
 import numpy as np
 import pandas as pd
-
-from tabulate import tabulate
 from click import confirm
+from tabulate import tabulate
 
-from ipl import importexport as importexport
 from ipl import image_analysis as image_anal
+from ipl import importexport as importexport
 from ipl import visualization as visualization
-from ipl._logging import logger
 from ipl.database import image_db as image_db
 from ipl.errors import IPLError
 

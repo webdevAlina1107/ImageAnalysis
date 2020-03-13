@@ -24,7 +24,7 @@ setup(
     entry_points={
         "console_scripts": ['ipl = ipl.image_processor:main']
     },
-    version="0.0.0",
+    version="0.0.1",
     license='MIT',
     description="Python command line application which analyses images",
     long_description=long_description,
