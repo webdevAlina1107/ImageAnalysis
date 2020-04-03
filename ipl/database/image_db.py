@@ -222,7 +222,7 @@ class ImageDatabase:
         erase_order = ['statistic_info', 'image', 'field']
         with self.connection:
             for table in erase_order:
-                statement = f'DELETE FROM {table}'
+                statement = f'DELETE FROM {table} go VACUUM'
                 self.execute_statement(statement)
 
 
