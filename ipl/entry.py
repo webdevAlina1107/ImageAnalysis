@@ -59,6 +59,8 @@ def cmdline_arguments():
                                     ' can be specified multiple times')
     import_parser.add_argument('-cc', '--calculations_cache', dest='cache', action='store_true',
                                help='Enables calculations caching while importing image')
+    import_parser.add_argument('--batch-size', dest='batch_size', type=int, default=1000,
+                               help='Size of images batch count for database transaction commit')
     import_parser.set_defaults(function=workflow.import_images)
 
     # EXPORT SUBPARSER
@@ -76,23 +78,24 @@ def cmdline_arguments():
                                help='Start date of a timeline', metavar='DD/MM/YYYY')
     export_parser.add_argument('--end-date', dest='end', type=_parse_date, default=datetime.date.max,
                                help='End date of a timeline', metavar='DD/MM/YYYY')
-    selection_type = export_parser.add_mutually_exclusive_group(required=True)
-    selection_type.add_argument('--field-id', dest='field_ids', default=None, nargs='+', type=int,
-                                metavar='FIELD_ID', help='ID of a field in a database')
-    selection_type.add_argument('--all', action='store_true', dest='all_',
-                                help='Exports without filtering by id')
+    export_parser.add_argument('--field-id', nargs='*', type=int, default=None, dest='field_ids',
+                               metavar='FIELD_ID', help="IDs of viewed fields' images")
+    export_parser.add_argument('--all', action='store_true', dest='all_', help='Selects all records')
+    export_parser.add_argument('--image-id', dest='image_ids', default=None, type=int, nargs='*',
+                               metavar='IMAGE_ID', help='IDs of processed images')
     export_parser.set_defaults(function=workflow.export_images)
 
     # PROCESSING SUBPARSER
 
     processing_parser = subparsers.add_parser('process', help='Process an image in a database or file')
-    processing_parser.add_argument('--file', dest='file', default=None, type=_check_file_path,
+    processing_parser.add_argument('--file', dest='file', default=None, type=_check_file_path, nargs='*',
                                    help='Path to image file', metavar='PATH/TO/IMAGE')
-    db_images_selection = processing_parser.add_mutually_exclusive_group()
-    db_images_selection.add_argument('--image-id', dest='image_ids', default=None, type=int, nargs='+',
-                                     metavar='IMAGE_ID', help='IDs of processed images')
-    db_images_selection.add_argument('--all', dest='all_', action='store_true',
-                                     help='Processes all images in database')
+    processing_parser.add_argument('--image-id', dest='image_ids', default=None, type=int, nargs='+',
+                                   metavar='IMAGE_ID', help='IDs of processed images')
+    processing_parser.add_argument('--field-id', nargs='*', type=int, default=None, dest='field_ids',
+                                   metavar='FIELD_ID', help="IDs of viewed fields' images")
+    processing_parser.add_argument('--all', dest='all_', action='store_true',
+                                   help='Processes all images in database')
     processing_parser.add_argument('-cc', '--calculations_cache', dest='cache', action='store_true',
                                    help='Enables calculations caching')
     processing_parser.add_argument('--export-to', dest='export_location', default=None,
@@ -103,11 +106,12 @@ def cmdline_arguments():
 
     db_view_parser = subparsers.add_parser('view', help='View DB records')
 
-    image_selection_group_ = db_view_parser.add_mutually_exclusive_group(required=True)
-    image_selection_group_.add_argument('--field-id', nargs='+', type=int, dest='field_ids',
-                                        metavar='FIELD_ID', help="IDs of viewed fields' images")
-    image_selection_group_.add_argument('--all', action='store_true', dest='all_',
-                                        help='Selects all records')
+    db_view_parser.add_argument('--field-id', nargs='*', type=int, default=None, dest='field_ids',
+                                metavar='FIELD_ID', help="IDs of viewed fields' images")
+    db_view_parser.add_argument('--all', action='store_true', dest='all_',
+                                help='Selects all records')
+    db_view_parser.add_argument('--image-id', dest='image_ids', default=None, type=int, nargs='*',
+                                metavar='IMAGE_ID', help='IDs of processed images')
     db_view_parser.add_argument('--head', type=int, dest='head', default=None,
                                 help='Max amount of printed records')
     db_view_parser.add_argument('--start-date', dest='start', type=_parse_date, default=datetime.date.min,
@@ -149,7 +153,7 @@ def cmdline_arguments():
                                                              help='Histogram to visualize frequency'
                                                                   ' of values occurrences in an image')
     image_selection_group = occurrences_parser.add_mutually_exclusive_group(required=True)
-    image_selection_group.add_argument('--file', dest='file', default=None, type=_check_file_path,
+    image_selection_group.add_argument('--file', dest='file', default=None, type=_check_file_path, nargs='*',
                                        help='Path to image file', metavar='PATH/TO/IMAGE')
     image_selection_group.add_argument('--image-id', dest='image_id', default=None, type=int,
                                        metavar='IMAGE_ID', help='ID of processed image')
@@ -174,10 +178,10 @@ def cmdline_arguments():
     arguments = parser.parse_args()
 
     if arguments.command == 'process':
-        if (arguments.file and (arguments.image_ids or arguments.all_) or
-                (not arguments.file and not arguments.image_ids and not arguments.all_)):
+        if (arguments.file and (arguments.image_ids or arguments.all_ or arguments.field_ids) or
+                (not arguments.file and not arguments.image_ids and not arguments.all_ and not arguments.field_ids)):
             parser.error('Unable to parse mutually exclusive group ["--file"] '
-                         'and ["--image-id" | "--all"]')
+                         'and ["--image-id" | "--all" | "--field-id"]')
 
     return arguments
 
