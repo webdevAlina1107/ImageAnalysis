@@ -222,9 +222,12 @@ class ImageDatabase:
         erase_order = ['statistic_info', 'image', 'field']
         with self.connection:
             for table in erase_order:
-                statement = f'DELETE FROM {table} go VACUUM'
+                statement = f'DELETE FROM {table}'
                 self.execute_statement(statement)
-
+            old_level = self.connection.isolation_level
+            self.connection.isolation_level = None
+            self.connection.execute('VACUUM')
+            self.connection.isolation_level = old_level
 
 class ImageDatabaseInstance:
     def __new__(cls):
