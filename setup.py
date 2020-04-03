@@ -31,7 +31,7 @@ setup(
     package_data={IPL_PACKAGE_NAME: package_data_patterns},
     include_package_data=True,
     entry_points={
-        "console_scripts": ['ipl = ipl.image_processor:main']
+        "console_scripts": ['ipl = ipl.entry:main']
     },
     version="0.1.4",
     license='MIT',

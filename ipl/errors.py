@@ -2,8 +2,10 @@ import warnings
 
 import rasterio
 
-warnings.filterwarnings("ignore", category=RuntimeWarning)
-warnings.filterwarnings("ignore", category=rasterio.errors.NotGeoreferencedWarning)
+IGNORED_WARNINGS = (rasterio.errors.NotGeoreferencedWarning,)
+for warning_type in IGNORED_WARNINGS:
+    warnings.filterwarnings("ignore",
+                            category=warning_type)
 
 
 class IPLError(Exception):

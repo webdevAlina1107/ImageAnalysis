@@ -6,7 +6,7 @@ import matplotlib.dates as dates
 import matplotlib.pyplot as plot
 import numpy as np
 
-from ipl._logging import logger
+from ipl.logging_ import logger
 from ipl.image_analysis import IMAGE_DATA_TYPE
 
 
@@ -70,10 +70,10 @@ def _determine_date_locator(dates_range: Sequence[datetime]):
     logger.debug(f'Selecting date locator for timeline diff = {diff}')
     locator = dates.YearLocator()
     locator_label = 'year'
-    if diff.days < 31:
+    if diff.days < 31 * 10:
         locator_label = 'days'
         locator = dates.DayLocator()
-    if diff.days < 365:
+    if diff.days < 365 * 10:
         locator_label = 'month'
         locator = dates.MonthLocator()
 
@@ -106,8 +106,6 @@ def plot_clouds_impact_for_a_period(time_stamps: Sequence[datetime],
     and plots bars histogram with this data"""
     axes, figure = plot.gca(), plot.gcf()
     logger.debug('Configuring histogram axes')
-    max_y = max(chain(non_clouded_counts, partially_clouded_counts, fully_clouded_counts))
-    axes.set_yticks(list(range(max_y + 1)))
     _setup_axes(axes,
                 title='Clouded images statistics',
                 x_label='Time stamps',
@@ -124,7 +122,7 @@ def plot_clouds_impact_for_a_period(time_stamps: Sequence[datetime],
               'thistle']
     bars_height = [non_clouded_counts, partially_clouded_counts, fully_clouded_counts]
     time_stamps = dates.date2num(time_stamps)
-    bar_width = 0.2
+    bar_width = 10
 
     def create_bar(y_axis, color, n=0):
         # Asserting that there would be only 3 bars
@@ -132,7 +130,8 @@ def plot_clouds_impact_for_a_period(time_stamps: Sequence[datetime],
                               y_values=y_axis,
                               x_values=time_stamps + bar_width * n - bar_width,
                               bar_width=bar_width,
-                              color=color)
+                              color=color,
+                              should_label_bars=False)
 
     logger.debug('Creating 3 bars')
     bars = tuple(create_bar(data, color, index) for index, (data, color) in enumerate(zip(bars_height, colors)))
@@ -156,7 +155,7 @@ def plot_statistics_for_a_period(time_stamps: Sequence[datetime],
     _setup_axes(axes,
                 title='Time period CI statistics',
                 x_label='Time stamps',
-                y_label='Statistical data')
+                y_label='Average')
     logger.debug('Configuring date formatting')
     dates_formatter = dates.DateFormatter('%d/%m/%Y')
     dates_locator = _determine_date_locator(time_stamps)

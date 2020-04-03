@@ -8,7 +8,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from ipl._logging import logger
+from ipl.logging_ import logger
 from ipl.errors import IPLError
 
 FILE_LOCATION = os.path.abspath(os.path.dirname(__file__))
@@ -84,22 +84,28 @@ class ImageDatabase:
 
     @_interacts_with_database
     def insert_image(self,
-                     field_id: str,
+                     field_id: int,
+                     revision: int,
                      image_bitmap: np.ndarray,
                      capture_date: datetime.date,
                      capture_satellite: str,
                      mysterious_date: datetime.date):
-        if not self.check_if_field_exists(field_id):
-            self.insert_field(field_id)
-        statement = _get_sql_statement('insert_image')
-        with self.connection:
-            self.execute_statement(statement, field_id, image_bitmap,
-                                   capture_date, capture_satellite, mysterious_date)
-        return self.cursor.lastrowid
+        if not self.check_if_image_details_exist(field_id, revision,
+                                                 capture_date, mysterious_date,
+                                                 capture_satellite):
+            if not self.check_if_field_exists(field_id):
+                self.insert_field(field_id)
+            statement = _get_sql_statement('insert_image')
+            with self.connection:
+                self.execute_statement(statement, field_id, revision, image_bitmap,
+                                       capture_date, capture_satellite, mysterious_date)
+            return self.cursor.lastrowid
+        else:
+            return None
 
     @_interacts_with_database
     def insert_field(self,
-                     field_id: str):
+                     field_id: int):
         statement = _get_sql_statement('insert_field')
         with self.connection:
             self.execute_statement(statement, field_id)
@@ -125,8 +131,20 @@ class ImageDatabase:
         return self.cursor.lastrowid
 
     @_interacts_with_database
+    def check_if_image_details_exist(self,
+                                     field_id: int,
+                                     revision: int,
+                                     capture_date: datetime.date,
+                                     mysterious_date: datetime.date,
+                                     capture_satellite: str):
+        statement = _get_sql_statement('check_if_image_details_exist')
+        self.execute_statement(statement, field_id, revision,
+                               capture_date, mysterious_date, capture_satellite)
+        return self.cursor.fetchone()[0]
+
+    @_interacts_with_database
     def check_if_field_exists(self,
-                              field_id: str):
+                              field_id: int):
         statement = _get_sql_statement('check_if_field_exists')
         self.execute_statement(statement, field_id)
         return self.cursor.fetchone()[0]
@@ -150,9 +168,12 @@ class ImageDatabase:
                             field_id: int,
                             filtered_columns: Optional[List[str]] = None,
                             date_start: datetime.date = datetime.date.min,
-                            date_end: datetime.date = datetime.date.max):
+                            date_end: datetime.date = datetime.date.max,
+                            limit: Optional[int] = None):
         statement = _get_sql_statement('select_images')
         query_parameters = (field_id, date_start, date_end,)
+        if limit is not None:
+            statement += f' LIMIT {limit}'
         records = pd.read_sql_query(statement, self.connection, params=query_parameters)
         if filtered_columns:
             records = records.filter(items=filtered_columns)
