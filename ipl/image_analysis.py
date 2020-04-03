@@ -5,8 +5,8 @@ import scipy.stats as stats
 
 from ipl.logging_ import logger
 
-IMAGE_DATA_TYPE = np.double
-SPECIAL_VALUE: IMAGE_DATA_TYPE = np.nan
+IMAGE_DATA_TYPE = np.uint8
+SPECIAL_VALUE: IMAGE_DATA_TYPE = IMAGE_DATA_TYPE(255)
 
 
 def fill_cloud_bits_with_value(array: np.ndarray,
