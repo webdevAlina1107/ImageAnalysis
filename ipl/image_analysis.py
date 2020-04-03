@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import scipy.stats as stats
 
-from ipl._logging import logger
+from ipl.logging_ import logger
 
 IMAGE_DATA_TYPE = np.double
 SPECIAL_VALUE: IMAGE_DATA_TYPE = np.nan

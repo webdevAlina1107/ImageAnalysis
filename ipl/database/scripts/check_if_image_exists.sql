@@ -1,1 +1,1 @@
-select exists(select 1 from field where image_id=? limit 1)
+select exists(select 1 from image where image_id=? limit 1)
