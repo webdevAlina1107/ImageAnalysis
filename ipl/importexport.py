@@ -115,16 +115,18 @@ def import_locally_stored_image(image_file_path: str):
 
 def import_images_folder(folder_path: str):
     try:
-        directory_objects = (os.path.join(folder_path, file) for file in os.listdir(folder_path))
-        directory_objects = list(filter(os.path.isfile, directory_objects))
-        imported_images_data = []
-        percentage_generator = ((index + 1) / len(directory_objects) * 100
-                                for index in range(0, len(directory_objects)))
-        for i, (percentage, file) in enumerate(zip(percentage_generator, directory_objects)):
+        directory_objects = list(os.path.join(folder_path, file) for file in os.listdir(folder_path))
+        directory_files = list(filter(os.path.isfile, directory_objects))
+        percentage_generator = ((index + 1) / len(directory_files) * 100
+                                for index in range(0, len(directory_files)))
+        for i, (percentage, file) in enumerate(zip(percentage_generator, directory_files)):
             image_data = import_locally_stored_image(file)
             if image_data:
                 yield image_data
-            logger.info('Processed %s files, completed %.2f %%', i + 1, percentage)
-        return imported_images_data
+            logger.info('Processed %s files in %s folder, completed %.2f %%', folder_path, i + 1, percentage)
+
+        sub_folders = filter(os.path.isdir, directory_objects)
+        for sub_folder in sub_folders:
+            yield from import_images_folder(sub_folder)
     except Exception as error:
         raise IPLError(f'Unable to import folder at "{folder_path}", reason : "{error}"')
