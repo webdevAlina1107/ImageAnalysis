@@ -56,7 +56,6 @@ def _calculate_images_statistics(images_array: List[np.ndarray],
         average[index_] = np.mean(image)
         std[index_] = np.std(image)
         ci_lower[index_], ci_upper[index_] = image_anal.calculate_confidence_interval(image)
-        image = image_anal.fill_cloud_bits_with_value(image)
         cloud_rate[index_] = image_anal.calculate_clouds_percentile(image)
 
     data_sources = (cloud_rate, average, std, ci_lower, ci_upper)
@@ -191,7 +190,6 @@ def visualize_clouds(field_id: int,
         image_id = row['image_id']
         if image_id not in calculated_images_set:
             image_bitmap = row['image_data']
-            image_bitmap = image_anal.fill_cloud_bits_with_value(image_bitmap)
             cloud_rate = image_anal.calculate_clouds_percentile(image_bitmap)
             cloud_rates.append(cloud_rate)
             capture_dates.append(row['capture_date'])
@@ -235,6 +233,8 @@ def visualize_occurrences(file: Optional[str],
         raise IPLError('Specify file or image_id for occurrences visualization')
 
     unique_value_occurs = image_anal.construct_values_occurrences_map(bitmap)
+    if 0 in unique_value_occurs.keys():
+        del unique_value_occurs[0]
     visualization.plot_values_frequencies(unique_value_occurs)
     visualization.show_plots()
 
@@ -254,19 +254,18 @@ def visualize_statistics(field_ids: List[str],
                                                              date_start=start,
                                                              date_end=end,
                                                              max_cloudiness=max_cloudiness)
+        print(cached_statistics)
         cached_images_ids = set(cached_statistics['image_id'])
-        required_fields = ['image_id', 'image_data', 'capture_date']
+        locally_required_fields = ['image_id', 'image_data', 'capture_date']
         other_images = database.select_field_images(field_id=field_id,
-                                                    filtered_columns=required_fields,
+                                                    filtered_columns=locally_required_fields,
                                                     date_start=start,
                                                     date_end=end)
         for index, image in other_images.iterrows():
             image_id = image['image_id']
             if image_id not in cached_images_ids:
                 bitmap: np.ndarray = image['image_data']
-                temp_bitmap = image_anal.fill_cloud_bits_with_value(bitmap)
-                cloud_rate = image_anal.calculate_clouds_percentile(temp_bitmap)
-                del temp_bitmap
+                cloud_rate = image_anal.calculate_clouds_percentile(bitmap)
                 if cloud_rate <= max_cloudiness:
                     capture_date = image['capture_date']
                     mean = np.nanmean(bitmap)

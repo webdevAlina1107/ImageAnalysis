@@ -1,5 +1,5 @@
 from datetime import datetime
-from itertools import chain
+from itertools import islice
 from typing import Any, Dict, Optional, Sequence
 
 import matplotlib.dates as dates
@@ -84,18 +84,18 @@ def _determine_date_locator(dates_range: Sequence[datetime]):
 def plot_values_frequencies(unique_values_occurrences: Dict[IMAGE_DATA_TYPE, int],
                             **kwargs):
     axes, figure = plot.gca(), plot.gcf()
-    occurrences = np.fromiter(unique_values_occurrences.values(), dtype=IMAGE_DATA_TYPE)
+    occurrences = np.fromiter(unique_values_occurrences.values(), dtype=np.int64)
     logger.debug('Configuring axes')
     _setup_axes(axes,
                 title='Frequencies histogram',
                 x_label='Values',
                 y_label='Occurrences')
     logger.debug('Constructing occurrences bar')
-    _construct_bar(axes, occurrences, **kwargs)
+    _construct_bar(axes, occurrences, should_label_bars=False, **kwargs)
     values_ = np.fromiter(unique_values_occurrences.keys(), dtype=IMAGE_DATA_TYPE)
     logger.debug('Configuring X-labels')
     axes.set_xticks(range(len(values_)))
-    axes.set_xticklabels(values_)
+    axes.set_xticklabels(values_, rotation=45)
 
 
 def plot_clouds_impact_for_a_period(time_stamps: Sequence[datetime],
