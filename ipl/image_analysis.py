@@ -3,7 +3,8 @@ import scipy.stats as stats
 
 from ipl.logging_ import logger
 
-IMAGE_DATA_TYPE = np.double
+IMAGE_DATA_TYPE = np.uint8
+SPECIAL_VALUE: IMAGE_DATA_TYPE = IMAGE_DATA_TYPE(255)
 
 
 def construct_values_occurrences_map(array: np.ndarray):
