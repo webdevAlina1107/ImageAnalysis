@@ -1,5 +1,6 @@
 # IDE directories
 .idea/
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 pycache/
