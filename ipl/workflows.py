@@ -1,8 +1,8 @@
 import calendar
 import datetime
 import os
-from itertools import islice, tee
-from typing import Iterable, List, Optional
+from itertools import chain, islice, tee
+from typing import Any, Iterable, List, Optional
 from warnings import warn
 
 import numpy as np
@@ -44,55 +44,68 @@ def _collect_cloudiness_data(cloudiness_data: Iterable[float],
             sum(1 for non, partially, fully in fully_gen if fully))
 
 
-def _calculate_images_statistics(images_array: List[np.ndarray],
+def _calculate_images_statistics(images_array: Iterable[np.ndarray],
                                  index_column: Optional[np.ndarray] = None):
-    cloud_rate = np.empty(len(images_array), np.double)
-    average = np.empty(len(images_array), np.double)
-    std = np.empty(len(images_array), np.double)
-    ci_lower = np.empty(len(images_array), np.double)
-    ci_upper = np.empty(len(images_array), np.double)
+    cloud_rate, average, std, ci_lower, ci_upper = [], [], [], [], []
 
     for index_, image in enumerate(images_array):
-        average[index_] = np.mean(image)
-        std[index_] = np.std(image)
-        ci_lower[index_], ci_upper[index_] = image_anal.calculate_confidence_interval(image)
-        cloud_rate[index_] = image_anal.calculate_clouds_percentile(image)
+        average.append(np.mean(image))
+        std.append(np.std(image))
+        ci_min, ci_max = image_anal.calculate_confidence_interval(image)
+        ci_lower.append(ci_min)
+        ci_upper.append(ci_max)
+        cloud_rate.append(image_anal.calculate_clouds_percentile(image))
 
     data_sources = (cloud_rate, average, std, ci_lower, ci_upper)
     columns = ['cloud_rate', 'ndvi_average', 'standard_deviation', 'lower_ci', 'upper_ci']
     df_initializer = {label: source for label, source in zip(columns, data_sources)}
     dataframe = pd.DataFrame(df_initializer)
     if index_column is not None:
-        dataframe['Image ID'] = index_column
-        dataframe.set_index('Image ID')
+        dataframe['image_id'] = index_column
+        dataframe = dataframe.loc[:, ['image_id'] + columns]
+        dataframe.sort_values(by='image_id', inplace=True)
     return dataframe
 
 
-def _collect_images(field_ids: List[int],
-                    start_date: datetime.date,
-                    end_date: datetime.date,
-                    filtered_columns: Optional[List[str]] = None,
-                    should_sort_images: bool = True,
-                    limit: Optional[int] = None):
+def _collect_images_ids(all_: bool,
+                        field_ids: Optional[List[int]] = None,
+                        image_ids: Optional[List[int]] = None):
     database = image_db.ImageDatabaseInstance()
+    image_ids = [] if image_ids is None else image_ids
+    if all_:
+        return database.select_images_ids()
+    elif field_ids:
+        ids_collections = (database.select_field_images(field_id)['image_id'] for field_id in field_ids)
+        ids_generator = (image_id for ids_collection in ids_collections for image_id in ids_collection)
+        image_ids.extend(ids_generator)
+    return np.unique(image_ids)
 
-    select_images = database.select_field_images
-    dataframes_list: List[pd.DataFrame] = []
-    for field_id in field_ids:
-        data_limit = limit - len(dataframes_list) if limit is not None else None
-        field_images = select_images(field_id=field_id,
-                                     date_start=start_date,
-                                     date_end=end_date,
-                                     filtered_columns=filtered_columns,
-                                     limit=data_limit)
-        dataframes_list.append(field_images)
-        if limit is not None and len(dataframes_list) >= limit:
-            break
 
-    if dataframes_list:
-        return pd.concat(dataframes_list, sort=should_sort_images)
-    else:
-        return None
+def _collect_images(image_ids: List[int],
+                    start_date: datetime.date = datetime.date.min,
+                    end_date: datetime.date = datetime.date.max,
+                    filtered_columns: Optional[List[str]] = None):
+    database = image_db.ImageDatabaseInstance()
+    select_image = database.select_image
+    for image_id in image_ids:
+        try:
+            image_data = select_image(image_id)
+            capture_date = image_data['capture_date'][0]
+            if start_date <= capture_date <= end_date:
+                dataframe = image_data.filter(filtered_columns) if filtered_columns else image_data
+                yield dataframe
+        except IPLError as error:
+            logger.warning('Error while loading image with id = %s, error : %s', image_id, error)
+
+
+def batch(iterable: Iterable[Any],
+          batch_size: int = 1):
+    try:
+        while True:
+            batch_iterator = islice(iterable, batch_size)
+            yield chain((next(batch_iterator),), batch_iterator)
+    except StopIteration:
+        pass
 
 
 def require_extension_modules(dependencies_list):
@@ -107,25 +120,25 @@ def require_extension_modules(dependencies_list):
 
 def process_images(file: Optional[str],
                    image_ids: Optional[List[int]],
-                   export_location: str,
+                   field_ids: Optional[List[int]],
                    all_: bool,
+                   export_location: str,
                    cache: bool,
                    **kwargs):
     if file:
         processed_images = [importexport.read_image_bitmap(file)]
     else:
-        database = image_db.ImageDatabaseInstance()
-        if all_:
-            image_ids = database.select_images_ids()
+        image_ids = _collect_images_ids(all_, field_ids, image_ids)
         required_fields = ['image_data']
-        images_data = [database.select_image(image_id, required_fields) for image_id in image_ids]
-        processed_images = [data['image_data'][0] for data in images_data]
+        images_data = _collect_images(image_ids, filtered_columns=required_fields)
+        processed_images = (data['image_data'][0] for data in images_data)
 
     image_ids = np.array(image_ids, dtype=image_anal.IMAGE_DATA_TYPE)
     dataframe = _calculate_images_statistics(processed_images, image_ids)
+    dataframe.set_index('image_id', inplace=True)
     labels = [label.replace('_', ' ').capitalize() for label in dataframe.columns.values]
     print(tabulate(dataframe, headers=labels, tablefmt='psql'))
-    if cache and image_ids:
+    if cache and len(image_ids) != 0:
         database = image_db.ImageDatabaseInstance()
         for image_id, (index, row) in zip(image_ids, dataframe.iterrows()):
             if not database.check_if_has_cached_statistics(image_id):
@@ -143,27 +156,28 @@ def process_images(file: Optional[str],
 
 
 def database_view(field_ids: Optional[List[int]],
+                  image_ids: Optional[List[int]],
+                  all_: bool,
                   head: Optional[int],
                   start: datetime.date,
                   end: datetime.date,
                   **kwargs):
     required_columns = ['field_id', 'image_id', 'revision',
                         'capture_date', 'mysterious_date', 'capture_satellite']
-    database = image_db.ImageDatabaseInstance()
-    if not field_ids:
-        field_ids = database.select_fields_ids()
-    dataframe = _collect_images(field_ids=field_ids,
-                                start_date=start,
-                                end_date=end,
-                                filtered_columns=required_columns,
-                                limit=head)
-    if dataframe is not None:
-        shown_dataframe = dataframe.head(head) if head is not None else dataframe
-        shown_dataframe = shown_dataframe.sort_values(by=['field_id', 'image_id', 'revision'])
-        labels = [label.replace('_', ' ').capitalize() for label in required_columns]
-        print(tabulate(shown_dataframe.loc[:, required_columns], headers=labels, tablefmt='psql', showindex=False))
-    else:
+    image_ids = _collect_images_ids(all_, field_ids, image_ids)
+    if head is not None:
+        image_ids = image_ids[:head]
+    images = _collect_images(image_ids, start, end, required_columns)
+
+    try:
+        dataframe = pd.concat(images, sort=False)
+    except ValueError:
         print("No suitable records found !")
+        return
+
+    dataframe.sort_values(by=['field_id', 'image_id', 'revision'], inplace=True)
+    labels = [label.replace('_', ' ').capitalize() for label in required_columns]
+    print(tabulate(dataframe.loc[:, required_columns], headers=labels, tablefmt='psql', showindex=False))
 
 
 def visualize_clouds(field_id: int,
@@ -291,6 +305,7 @@ def visualize_statistics(field_ids: List[str],
 
 def import_images(import_location: List[str],
                   cache: bool,
+                  batch_size: int,
                   **kwargs):
     database = image_db.ImageDatabaseInstance()
     for location in import_location:
@@ -299,24 +314,28 @@ def import_images(import_location: List[str],
         else:
             images_data = filter(lambda data: data is not None,
                                  (importexport.import_locally_stored_image(location),))
-        for image_data in images_data:
-            file_path, db_info = image_data
-            image_id = database.insert_image(*db_info)
-            if image_id is not None:
-                if cache:
-                    bitmap = db_info[2]
-                    statistics = image_anal.calculate_all_statistics(bitmap)
-                    database.insert_image_statistics(image_id, *statistics)
-            else:
-                logger.warning('Unable to import file "%s", it already exists in a database', file_path)
+        for images_batch in batch(images_data, batch_size):
+            for image_data in images_batch:
+                file_path, db_info = image_data
+                image_id = database.insert_image(*db_info)
+                if image_id is not None:
+                    if cache:
+                        bitmap = db_info[2]
+                        statistics = image_anal.calculate_all_statistics(bitmap)
+                        database.insert_image_statistics(image_id, *statistics)
+                else:
+                    logger.warning('Unable to import file "%s", it already exists in a database', file_path)
+            database.connection.commit()
+        database.make_vacuum()
 
 
 def export_images(export_location: str,
+                  field_ids: Optional[List[int]],
+                  image_ids: Optional[List[int]],
+                  all_: bool,
                   start: datetime.date,
                   end: datetime.date,
                   driver: str,
-                  field_ids: List[int],
-                  all_: bool,
                   force: bool,
                   **kwargs):
     if not os.path.isdir(export_location):
@@ -324,21 +343,17 @@ def export_images(export_location: str,
             os.makedirs(export_location, exist_ok=True)
         else:
             raise IPLError('Unable to export data to non-existent directory')
-    database = image_db.ImageDatabaseInstance()
-    if all_:
-        field_ids = database.select_fields_ids()
-    dataframe = _collect_images(field_ids=field_ids,
-                                start_date=start,
-                                end_date=end)
+    image_ids = _collect_images_ids(all_, field_ids, image_ids)
+    image_data = (dataframe.iloc[0] for dataframe in _collect_images(image_ids, start, end))
     selected_extension = importexport.SupportedDrivers[driver].value
 
-    for index, row in dataframe.iterrows():
-        capture_date = row['capture_date'].strftime("%d%m%Y")
-        satellite = row['capture_satellite']
-        mysterious_date = row['mysterious_date'].strftime("P%Y%m%d")
-        field_id = row['field_id']
-        revision = row['revision']
-        bitmap = row['image_data']
+    for dataframe in image_data:
+        capture_date = dataframe['capture_date'].strftime("%d%m%Y")
+        satellite = dataframe['capture_satellite']
+        mysterious_date = dataframe['mysterious_date'].strftime("P%Y%m%d")
+        field_id = dataframe['field_id']
+        revision = dataframe['revision']
+        bitmap = dataframe['image_data']
         file_name = (f'{capture_date}_{field_id}r{revision}_NDVI_'
                      f'{mysterious_date}_{satellite}.{selected_extension}')
         file_path = os.path.join(export_location, file_name)

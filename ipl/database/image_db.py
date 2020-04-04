@@ -3,13 +3,14 @@ import functools
 import io
 import os
 import sqlite3
+from contextlib import contextmanager
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 
-from ipl.logging_ import logger
 from ipl.errors import IPLError
+from ipl.logging_ import logger
 
 FILE_LOCATION = os.path.abspath(os.path.dirname(__file__))
 DATABASE_LOCATION = os.path.join(FILE_LOCATION, 'datasource', 'images.db')
@@ -96,9 +97,8 @@ class ImageDatabase:
             if not self.check_if_field_exists(field_id):
                 self.insert_field(field_id)
             statement = _get_sql_statement('insert_image')
-            with self.connection:
-                self.execute_statement(statement, field_id, revision, image_bitmap,
-                                       capture_date, capture_satellite, mysterious_date)
+            self.execute_statement(statement, field_id, revision, image_bitmap,
+                                   capture_date, capture_satellite, mysterious_date)
             return self.cursor.lastrowid
         else:
             return None
@@ -184,7 +184,7 @@ class ImageDatabase:
                      image_id: int,
                      filtered_columns: Optional[List[str]] = None):
         statement = f'SELECT * FROM image WHERE image_id = ?'
-        dataframe = pd.read_sql_query(statement, self.connection, params=(image_id,))
+        dataframe = pd.read_sql_query(statement, self.connection, params=(int(image_id),))
         if dataframe.shape and dataframe.shape[0] > 0:
             if filtered_columns:
                 dataframe = dataframe.filter(filtered_columns)
@@ -216,7 +216,20 @@ class ImageDatabase:
             return dataframe.filter(filtered_columns)
         return dataframe
 
-    # Cascading does not works :(
+    @contextmanager
+    def disable_transactions(self):
+        actual_level = self.connection.isolation_level
+        try:
+            self.connection.isolation_level = None
+            yield
+        finally:
+            self.connection.isolation_level = actual_level
+
+    @_interacts_with_database
+    def make_vacuum(self):
+        with self.disable_transactions():
+            self.connection.execute('VACUUM')
+
     @_interacts_with_database
     def erase_all(self):
         erase_order = ['statistic_info', 'image', 'field']
@@ -224,10 +237,8 @@ class ImageDatabase:
             for table in erase_order:
                 statement = f'DELETE FROM {table}'
                 self.execute_statement(statement)
-            old_level = self.connection.isolation_level
-            self.connection.isolation_level = None
-            self.connection.execute('VACUUM')
-            self.connection.isolation_level = old_level
+        self.make_vacuum()
+
 
 class ImageDatabaseInstance:
     def __new__(cls):
