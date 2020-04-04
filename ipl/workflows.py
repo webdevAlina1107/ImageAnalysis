@@ -1,8 +1,8 @@
 import calendar
 import datetime
 import os
-from itertools import islice, tee, chain
-from typing import Iterable, List, Optional, Any
+from itertools import chain, islice, tee
+from typing import Any, Iterable, List, Optional
 from warnings import warn
 
 import numpy as np

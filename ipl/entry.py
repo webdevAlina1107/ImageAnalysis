@@ -6,8 +6,8 @@ from pprint import pformat
 
 import ipl.importexport as importexport
 import ipl.workflows as workflow
-from ipl.logging_ import configure_logger, logger
 from ipl.errors import IPLError
+from ipl.logging_ import configure_logger, logger
 
 
 def _parse_date(string: str):

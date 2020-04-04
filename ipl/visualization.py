@@ -1,13 +1,12 @@
 from datetime import datetime
-from itertools import islice
 from typing import Any, Dict, Optional, Sequence
 
 import matplotlib.dates as dates
 import matplotlib.pyplot as plot
 import numpy as np
 
-from ipl.logging_ import logger
 from ipl.image_analysis import IMAGE_DATA_TYPE
+from ipl.logging_ import logger
 
 
 def _construct_bar(ax,

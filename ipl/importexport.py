@@ -1,17 +1,17 @@
+import contextlib
 import datetime
 import os
 import re
 import sys
 from enum import Enum
-import contextlib
 from operator import attrgetter
 
 import numpy as np
 import rasterio as rast
 
-from ipl.logging_ import logger
 from ipl.errors import IPLError
 from ipl.image_analysis import IMAGE_DATA_TYPE
+from ipl.logging_ import logger
 
 IMAGE_FILE_NAME_PATTERN = re.compile(r"^(\d+)_(\d+)r(\d+)_NDVI_P(\d+)_(.+)$")
 
@@ -123,7 +123,7 @@ def import_images_folder(folder_path: str):
             image_data = import_locally_stored_image(file)
             if image_data:
                 yield image_data
-            logger.info('Processed %s files in %s folder, completed %.2f %%', folder_path, i + 1, percentage)
+            logger.info('Processed %s files in %s folder, completed %.2f %%', i + 1, folder_path, percentage)
 
         sub_folders = filter(os.path.isdir, directory_objects)
         for sub_folder in sub_folders:

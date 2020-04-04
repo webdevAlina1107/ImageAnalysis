@@ -3,14 +3,14 @@ import functools
 import io
 import os
 import sqlite3
-from typing import List, Optional
 from contextlib import contextmanager
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 
-from ipl.logging_ import logger
 from ipl.errors import IPLError
+from ipl.logging_ import logger
 
 FILE_LOCATION = os.path.abspath(os.path.dirname(__file__))
 DATABASE_LOCATION = os.path.join(FILE_LOCATION, 'datasource', 'images.db')
