@@ -5,7 +5,7 @@ import os
 from setuptools import setup
 
 IPL_PACKAGE_NAME = 'ipl'
-PACKAGE_VERSION = '0.2.2'
+PACKAGE_VERSION = '0.2.3'
 FILE_LOCATION = os.path.dirname(__file__)
 README_LOCATION = os.path.join(FILE_LOCATION, 'README.rst')
 REQUIREMENTS_LOCATION = os.path.join(FILE_LOCATION, 'requirements.txt')
