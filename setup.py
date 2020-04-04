@@ -5,6 +5,7 @@ import os
 from setuptools import setup
 
 IPL_PACKAGE_NAME = 'ipl'
+PACKAGE_VERSION = '0.2.2'
 FILE_LOCATION = os.path.dirname(__file__)
 README_LOCATION = os.path.join(FILE_LOCATION, 'README.rst')
 REQUIREMENTS_LOCATION = os.path.join(FILE_LOCATION, 'requirements.txt')
@@ -26,7 +27,7 @@ setup(
     entry_points={
         "console_scripts": [f'{IPL_PACKAGE_NAME} = {IPL_PACKAGE_NAME}.entry:main']
     },
-    version="0.2.0",
+    version=PACKAGE_VERSION,
     license='MIT',
     description="Python command line application which analyses images data",
     long_description=long_description,
@@ -34,7 +35,7 @@ setup(
     author="Fugol Alina, Taran Anatoly",
     author_email="webdevAlina@gmail.com",
     url="https://github.com/webdevAlina1107/ImageAnalysis",
-    download_url='https://github.com/webdevAlina1107/ImageAnalysis/archive/0.2.0.tar.gz',
+    download_url=f'https://github.com/webdevAlina1107/ImageAnalysis/archive/{PACKAGE_VERSION}.tar.gz',
     keywords=['IMAGE PROCESSING', 'CMD', 'UTILITY', 'RASTER'],
     install_requires=requirements,
     extras_require=extras,
