@@ -60,7 +60,7 @@ def cmdline_arguments():
     import_parser.add_argument('-cc', '--calculations_cache', dest='cache', action='store_true',
                                help='Enables calculations caching while importing image')
     import_parser.add_argument('--batch-size', dest='batch_size', type=int, default=1000,
-                               help='Size of images batch count for database transaction commit')
+                               help='Size of images batch size for database transaction commit')
     import_parser.set_defaults(function=workflow.import_images)
 
     # EXPORT SUBPARSER
@@ -100,6 +100,8 @@ def cmdline_arguments():
                                    help='Enables calculations caching')
     processing_parser.add_argument('--export-to', dest='export_location', default=None,
                                    type=str, help='Path to excel file where results would be stored')
+    processing_parser.add_argument('--batch-size', dest='batch_size', type=int, default=1000,
+                                   help='Size of images batch size for database transaction commit')
     processing_parser.set_defaults(function=workflow.process_images)
 
     # DB VIEW SUBPARSER

@@ -120,14 +120,13 @@ class ImageDatabase:
                                 confidence_interval_lower: float,
                                 confidence_interval_upper: float):
         statement = _get_sql_statement('insert_image_statistics')
-        with self.connection:
-            self.execute_statement(statement,
-                                   image_id,
-                                   cloudiness,
-                                   index_average,
-                                   standard_deviation,
-                                   confidence_interval_lower,
-                                   confidence_interval_upper)
+        self.execute_statement(statement,
+                               image_id,
+                               cloudiness,
+                               index_average,
+                               standard_deviation,
+                               confidence_interval_lower,
+                               confidence_interval_upper)
         return self.cursor.lastrowid
 
     @_interacts_with_database

@@ -124,6 +124,7 @@ def process_images(file: Optional[str],
                    all_: bool,
                    export_location: str,
                    cache: bool,
+                   batch_size: int,
                    **kwargs):
     if file:
         processed_images = [importexport.read_image_bitmap(file)]
@@ -140,15 +141,17 @@ def process_images(file: Optional[str],
     print(tabulate(dataframe, headers=labels, tablefmt='psql'))
     if cache and len(image_ids) != 0:
         database = image_db.ImageDatabaseInstance()
-        for image_id, (index, row) in zip(image_ids, dataframe.iterrows()):
-            if not database.check_if_has_cached_statistics(image_id):
-                cloud_rate = row['cloud_rate']
-                ndvi_average = row['ndvi_average']
-                std = row['standard_deviation']
-                lower_ci = row['lower_ci']
-                upper_ci = row['upper_ci']
-                database.insert_image_statistics(image_id, cloud_rate, ndvi_average,
-                                                 std, lower_ci, upper_ci)
+        for data_batch in batch(zip(image_ids, dataframe.iterrows()), batch_size):
+            for image_id, (index, row) in data_batch:
+                if not database.check_if_has_cached_statistics(image_id):
+                    cloud_rate = row['cloud_rate']
+                    ndvi_average = row['ndvi_average']
+                    std = row['standard_deviation']
+                    lower_ci = row['lower_ci']
+                    upper_ci = row['upper_ci']
+                    database.insert_image_statistics(image_id, cloud_rate, ndvi_average,
+                                                     std, lower_ci, upper_ci)
+            database.connection.commit()
     if export_location:
         require_extension_modules(['xlsxwriter'])
         dataframe.to_excel(export_location, engine='xlsxwriter',
