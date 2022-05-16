@@ -4,4 +4,4 @@ tabulate==0.8.6
 pandas==1.0.1
 scipy==1.4.1
 rasterio==1.0.24
-numpy==1.18.1
+numpy==1.21.0
